@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Image, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +18,18 @@ interface Props {
 }
 
 type Mode = 'closed' | 'camera' | 'processing';
+type FocusMode = 'on' | 'off';
+
+/**
+ * expo-camera only exposes an autofocus mode, not a focus point, and its two
+ * values mean opposite things on the web (on = continuous, off = locked) and on
+ * phones (on = focus once, off = continuous). A refocus therefore briefly flips
+ * the mode and then restores the normal continuous behaviour.
+ */
+const IDLE_FOCUS: FocusMode = Platform.OS === 'web' ? 'on' : 'off';
+const REFOCUS_FOCUS: FocusMode = Platform.OS === 'web' ? 'off' : 'on';
+const REFOCUS_MS = Platform.OS === 'web' ? 350 : 1500;
+const FOCUS_NOTICE_MS = 1400;
 
 const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -29,6 +41,9 @@ export function CardCapture({ expectedCount = 1, label = 'Take photo', table = f
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [status, setStatus] = useState('');
   const [warmStatus, setWarmStatus] = useState<string | null>(null);
+  const [focusMode, setFocusMode] = useState<FocusMode>(IDLE_FOCUS);
+  const [focusing, setFocusing] = useState(false);
+  const focusTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const processing = mode === 'processing';
   const { width, height } = useWindowDimensions();
   const landscape = width > height;
@@ -42,6 +57,31 @@ export function CardCapture({ expectedCount = 1, label = 'Take photo', table = f
       active = false;
     };
   }, []);
+
+  const clearFocusTimers = () => {
+    focusTimers.current.forEach(clearTimeout);
+    focusTimers.current = [];
+  };
+
+  useEffect(() => clearFocusTimers, []);
+
+  useEffect(() => {
+    if (mode !== 'camera') {
+      clearFocusTimers();
+      setFocusMode(IDLE_FOCUS);
+      setFocusing(false);
+    }
+  }, [mode]);
+
+  const refocus = () => {
+    clearFocusTimers();
+    setFocusing(true);
+    setFocusMode(REFOCUS_FOCUS);
+    focusTimers.current = [
+      setTimeout(() => setFocusMode(IDLE_FOCUS), REFOCUS_MS),
+      setTimeout(() => setFocusing(false), Math.max(FOCUS_NOTICE_MS, REFOCUS_MS)),
+    ];
+  };
 
   const process = async (uri: string) => {
     const token = ++run.current;
@@ -139,7 +179,18 @@ export function CardCapture({ expectedCount = 1, label = 'Take photo', table = f
         <View style={styles.screen}>
           {mode === 'camera' && (
             <>
-              <CameraView ref={camera} style={StyleSheet.absoluteFill} facing="back" />
+              <CameraView ref={camera} style={StyleSheet.absoluteFill} facing="back" autofocus={focusMode} />
+              <Pressable
+                accessibilityLabel="Tap to focus"
+                style={StyleSheet.absoluteFill}
+                onPress={refocus}
+              />
+              {focusing && (
+                <View style={[styles.focusRing, landscape ? styles.focusRingLandscape : styles.focusRingPortrait]} pointerEvents="none">
+                  <View style={styles.focusBox} />
+                  <Text style={styles.focusText}>Focusing…</Text>
+                </View>
+              )}
               <View
                 style={[
                   styles.guide,
@@ -159,6 +210,14 @@ export function CardCapture({ expectedCount = 1, label = 'Take photo', table = f
                 onPress={() => setMode('closed')}
               >
                 <Ionicons name="close" size={28} color={colors.text} />
+              </Pressable>
+              <Pressable
+                accessibilityLabel="Focus camera"
+                style={[styles.focus, landscape ? styles.focusLandscape : styles.focusPortrait]}
+                onPress={refocus}
+              >
+                <Ionicons name="locate" size={26} color={focusing ? colors.primary : colors.text} />
+                <Text style={styles.focusLabel}>Focus</Text>
               </Pressable>
               <Pressable
                 accessibilityLabel="Take picture"
@@ -218,6 +277,18 @@ const styles = StyleSheet.create({
   },
   shutterPortrait: { bottom: 48, alignSelf: 'center' },
   shutterLandscape: { right: 28, top: '50%', marginTop: -36 },
+  focus: {
+    position: 'absolute', width: 64, height: 64, borderRadius: 32, backgroundColor: '#08110daa',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  focusPortrait: { bottom: 54, left: 36 },
+  focusLandscape: { right: 36, top: '50%', marginTop: 64 },
+  focusLabel: { color: colors.text, fontSize: 10, fontWeight: '800', marginTop: 1 },
+  focusRing: { position: 'absolute', alignItems: 'center', gap: 8 },
+  focusRingPortrait: { left: 0, right: 0, top: '38%' },
+  focusRingLandscape: { left: 0, right: 100, top: '40%' },
+  focusBox: { width: 76, height: 76, borderRadius: 14, borderWidth: 2, borderColor: colors.primary },
+  focusText: { color: colors.primary, fontWeight: '800', fontSize: 13, backgroundColor: '#08110dcc', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, overflow: 'hidden' },
   shutterInner: { flex: 1, alignSelf: 'stretch', backgroundColor: colors.text, borderRadius: 30 },
   close: { position: 'absolute', backgroundColor: '#08110daa', padding: 8, borderRadius: 24 },
   closePortrait: { top: 54, right: 20 },

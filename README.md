@@ -72,6 +72,16 @@ corners are hidden are not reliably read, and a card can occasionally be
 misread. Grouping is positional, so players' hands must be visibly separate
 from each other and from the board. Grouping logic is in `utils/tableLayout.ts`.
 
+### Camera focus
+
+In the camera, tap anywhere on the preview or press **Focus** to re-trigger
+autofocus (a "Focusing..." ring confirms it). `expo-camera` has no focus-point
+API, so this refocuses the camera rather than focusing on the tapped spot. It
+flips the autofocus mode briefly and restores continuous autofocus; the two
+modes mean opposite things on the web and on phones, which `CardCapture`
+accounts for. On the web the camera is also now explicitly in continuous
+autofocus (the library's default there was locked/manual focus).
+
 Tips for good results: even light, card corners (rank and suit) visible, and
 cards not covering each other's corners.
 
