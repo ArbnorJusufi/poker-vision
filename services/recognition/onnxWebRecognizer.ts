@@ -1,11 +1,12 @@
 import type { CardRecognitionAdapter, RecognitionStatusListener } from '@/services/CardRecognitionService';
-import { RecognitionResult } from '@/types/poker';
-import { detectCards } from './detectCards';
+import { RecognitionResult, TableDetection } from '@/types/poker';
+import { Variant, applyVariant } from './imageOps';
+import { PassRunner, detectCards, detectTable } from './pipeline';
 import { INPUT_SIZE, Region, codeToCard, decodeOutput, letterboxFor, rgbaToTensor } from './yolo';
 
 const MODEL_URL = '/models/cards.onnx';
 const ORT_BASE = '/ort/';
-const DETECTION_THRESHOLD = 0.3;
+const DETECTION_THRESHOLD = 0.12;
 
 interface OrtTensor {
   data: Float32Array;
@@ -97,7 +98,7 @@ async function loadBitmap(uri: string): Promise<ImageBitmap> {
   return createImageBitmap(await response.blob());
 }
 
-function renderRegion(bitmap: ImageBitmap, region: Region): Uint8ClampedArray {
+function renderRegion(bitmap: ImageBitmap, region: Region, variant: Variant): Uint8ClampedArray {
   const letterbox = letterboxFor(region.width, region.height);
   const canvas = document.createElement('canvas');
   canvas.width = INPUT_SIZE;
@@ -111,7 +112,8 @@ function renderRegion(bitmap: ImageBitmap, region: Region): Uint8ClampedArray {
     bitmap, region.x, region.y, region.width, region.height,
     letterbox.padX, letterbox.padY, letterbox.width, letterbox.height,
   );
-  return context.getImageData(0, 0, INPUT_SIZE, INPUT_SIZE).data;
+  const rgba = context.getImageData(0, 0, INPUT_SIZE, INPUT_SIZE).data;
+  return applyVariant(rgba, INPUT_SIZE, variant);
 }
 
 export class OnnxWebRecognizer implements CardRecognitionAdapter {
@@ -137,19 +139,11 @@ export class OnnxWebRecognizer implements CardRecognitionAdapter {
       const ort = (window as unknown as { ort: OrtRuntime }).ort;
 
       try {
-        const runRegion = async (region: Region) => {
-          emit(region.width < bitmap.width ? 'Looking closer…' : 'Detecting cards…');
-          await yieldToUi();
-          const rgba = renderRegion(bitmap, region);
-          const input = new ort.Tensor('float32', rgbaToTensor(rgba), [1, 3, INPUT_SIZE, INPUT_SIZE]);
-          const outputs = await session.run({ [session.inputNames[0]]: input });
-          const output = outputs[session.outputNames[0]];
-          return decodeOutput(
-            output.data, output.dims[2], letterboxFor(region.width, region.height), region, DETECTION_THRESHOLD,
-          );
-        };
+        const runRegion = this.passRunner(session, ort, bitmap);
 
-        const { detections } = await detectCards(runRegion, bitmap.width, bitmap.height, expectedCount);
+        const { detections } = await detectCards(
+          runRegion, bitmap.width, bitmap.height, expectedCount, emit,
+        );
         const cards = detections.map((detection) => codeToCard(detection.code));
         const confidences = detections.map((detection) => detection.confidence);
         const confidence = confidences.length ? Math.min(...confidences) : undefined;
@@ -161,6 +155,37 @@ export class OnnxWebRecognizer implements CardRecognitionAdapter {
           message = `Detected ${cards.length} of ${expectedCount} cards. Add the missing cards manually or retake the photo.`;
         }
         return { cards, confidences, confidence, source: 'model', message };
+      } finally {
+        bitmap.close();
+      }
+    } finally {
+      if (onStatus) statusListeners.delete(onStatus);
+    }
+  }
+
+  private passRunner(session: OrtSession, ort: OrtRuntime, bitmap: ImageBitmap): PassRunner {
+    return async (region: Region, variant: Variant) => {
+      if (variant === 'plain') emit(region.width < bitmap.width ? 'Looking closer…' : 'Detecting cards…');
+      await yieldToUi();
+      const rgba = renderRegion(bitmap, region, variant);
+      const input = new ort.Tensor('float32', rgbaToTensor(rgba), [1, 3, INPUT_SIZE, INPUT_SIZE]);
+      const outputs = await session.run({ [session.inputNames[0]]: input });
+      const output = outputs[session.outputNames[0]];
+      return decodeOutput(
+        output.data, output.dims[2], letterboxFor(region.width, region.height), region, DETECTION_THRESHOLD,
+      );
+    };
+  }
+
+  async recognizeTable(imageUri: string, onStatus?: RecognitionStatusListener): Promise<TableDetection> {
+    if (onStatus) statusListeners.add(onStatus);
+    try {
+      emit(sessionReady ? 'Reading photo…' : 'Loading card detector…');
+      const [session, bitmap] = await Promise.all([getSession(), loadBitmap(imageUri)]);
+      const ort = (window as unknown as { ort: OrtRuntime }).ort;
+      try {
+        const { cards } = await detectTable(this.passRunner(session, ort, bitmap), bitmap.width, bitmap.height, emit);
+        return { imageWidth: bitmap.width, imageHeight: bitmap.height, cards };
       } finally {
         bitmap.close();
       }

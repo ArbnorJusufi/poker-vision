@@ -28,6 +28,9 @@ export function HomeScreen() {
       <Pressable style={styles.button} onPress={() => { reset(); router.push('/community'); }}>
         <Text style={styles.buttonText}>Start new game</Text><Ionicons name="arrow-forward" size={21} color={colors.background} />
       </Pressable>
+      <Pressable style={styles.tableButton} onPress={() => { reset(); router.push('/table'); }}>
+        <Ionicons name="scan-outline" size={21} color={colors.primary} /><Text style={styles.tableButtonText}>Scan whole table</Text>
+      </Pressable>
       <Text style={styles.footnote}>Cards stay on your device</Text>
       </ScrollView>
     </SafeAreaView>
@@ -50,5 +53,7 @@ const styles = StyleSheet.create({
   line: { flex: 1, height: 1, backgroundColor: colors.border, marginHorizontal: 10 },
   button: { height: 58, borderRadius: 16, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 10 },
   buttonText: { color: colors.background, fontWeight: '900', fontSize: 17 },
+  tableButton: { height: 54, borderRadius: 16, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 10, marginTop: 12 },
+  tableButtonText: { color: colors.primary, fontWeight: '800', fontSize: 16 },
   footnote: { color: colors.textMuted, textAlign: 'center', marginVertical: 14, fontSize: 12 },
 });

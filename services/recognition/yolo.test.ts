@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { detectCards } from './detectCards';
+import { detectCards } from './pipeline';
 import {
   CARD_CODES, Detection, codeToCard, decodeOutput, letterboxFor, mergeByCode,
-  nonMaxSuppression, rgbaToTensor, selectCards, tileRegions,
+  nonMaxSuppression, rgbaToTensor, selectCards,
 } from './yolo';
 
 const det = (code: string, confidence: number, x: number): Detection => ({
@@ -77,25 +77,3 @@ describe('suppression and merging', () => {
   });
 });
 
-describe('detectCards tiling fallback', () => {
-  it('does not tile when enough cards are found', async () => {
-    let calls = 0;
-    const result = await detectCards(async () => {
-      calls += 1;
-      return [det('AS', 0.9, 0), det('KS', 0.9, 50)];
-    }, 1000, 800, 2);
-    expect(calls).toBe(1);
-    expect(result.usedTiles).toBe(false);
-  });
-  it('scans tiles and merges when cards are missing', async () => {
-    let calls = 0;
-    const result = await detectCards(async (region) => {
-      calls += 1;
-      if (region.width === 1000) return [det('AS', 0.9, 0)];
-      return region.x === 0 && region.y === 0 ? [det('KS', 0.8, 500)] : [];
-    }, 1000, 800, 2);
-    expect(result.usedTiles).toBe(true);
-    expect(calls).toBe(1 + tileRegions(1000, 800).length);
-    expect(result.detections.map((d) => d.code).sort()).toEqual(['AS', 'KS']);
-  });
-});

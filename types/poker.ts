@@ -50,3 +50,31 @@ export interface RecognitionResult {
   source: 'model' | 'manual';
   message?: string;
 }
+
+export interface PositionedCard {
+  code: string;
+  card: Card;
+  confidence: number;
+  /** Estimated card centre in source-image pixels. */
+  x: number;
+  y: number;
+  /** Typical height of the card's corner index in pixels; a scale reference. */
+  size: number;
+}
+
+export interface TableDetection {
+  imageWidth: number;
+  imageHeight: number;
+  cards: PositionedCard[];
+  message?: string;
+}
+
+export interface TableLayout {
+  ok: boolean;
+  message?: string;
+  community: PositionedCard[];
+  /** One entry per player, ordered clockwise starting from the top. */
+  players: PositionedCard[][];
+  /** Detected cards ignored as likely false positives. */
+  dropped: PositionedCard[];
+}

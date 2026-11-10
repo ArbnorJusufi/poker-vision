@@ -8,6 +8,8 @@ interface GameContextValue {
   addPlayer: () => void;
   updatePlayer: (id: string, patch: Partial<Omit<Player, 'id'>>) => void;
   removePlayer: (id: string) => void;
+  /** Replaces the whole game, e.g. after scanning a photo of the table. */
+  loadGame: (community: Card[], hands: Card[][]) => void;
   reset: () => void;
 }
 
@@ -30,6 +32,11 @@ export function GameProvider({ children }: PropsWithChildren) {
     updatePlayer: (id, patch) =>
       setPlayers((current) => current.map((player) => player.id === id ? { ...player, ...patch } : player)),
     removePlayer: (id) => setPlayers((current) => current.filter((player) => player.id !== id)),
+    loadGame: (nextCommunity, hands) => {
+      counter.current = hands.length;
+      setCommunity(nextCommunity);
+      setPlayers(hands.map((cards, index) => ({ id: `player-${index + 1}`, name: `Player ${index + 1}`, cards })));
+    },
     reset: () => {
       counter.current = 0;
       setCommunity([]);

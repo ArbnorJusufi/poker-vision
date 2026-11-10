@@ -5,20 +5,23 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@/constants/theme';
 import { CardRecognitionService } from '@/services/CardRecognitionService';
-import { RecognitionResult } from '@/types/poker';
+import { RecognitionResult, TableDetection } from '@/types/poker';
 import { notify } from '@/utils/dialogs';
 
 interface Props {
-  expectedCount: number;
+  expectedCount?: number;
   label?: string;
-  onResult: (result: RecognitionResult) => void;
+  /** Scan a photo of the whole table instead of a fixed number of cards. */
+  table?: boolean;
+  onResult?: (result: RecognitionResult) => void;
+  onTable?: (detection: TableDetection, photoUri: string) => void;
 }
 
 type Mode = 'closed' | 'camera' | 'processing';
 
 const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-export function CardCapture({ expectedCount, label = 'Take photo', onResult }: Props) {
+export function CardCapture({ expectedCount = 1, label = 'Take photo', table = false, onResult, onTable }: Props) {
   const camera = useRef<CameraView>(null);
   const run = useRef(0);
   const [permission, requestPermission] = useCameraPermissions();
@@ -47,11 +50,29 @@ export function CardCapture({ expectedCount, label = 'Take photo', onResult }: P
     setMode('processing');
     await pause(60);
 
+    const report = (next: string) => {
+      if (token === run.current) setStatus(next);
+    };
+
+    if (table) {
+      let detection: TableDetection;
+      try {
+        detection = await CardRecognitionService.recognizeTable(uri, report);
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : 'Unknown error';
+        detection = { imageWidth: 0, imageHeight: 0, cards: [], message: `Detection failed (${reason}).` };
+      }
+      if (token !== run.current) return;
+      setMode('closed');
+      setPhotoUri(null);
+      await pause(80);
+      onTable?.(detection, uri);
+      return;
+    }
+
     let result: RecognitionResult;
     try {
-      result = await CardRecognitionService.recognize(uri, expectedCount, (next) => {
-        if (token === run.current) setStatus(next);
-      });
+      result = await CardRecognitionService.recognize(uri, expectedCount, report);
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'Unknown error';
       result = { cards: [], source: 'manual', message: `Detection failed (${reason}). Select the cards manually.` };
@@ -61,7 +82,7 @@ export function CardCapture({ expectedCount, label = 'Take photo', onResult }: P
     setMode('closed');
     setPhotoUri(null);
     await pause(80);
-    onResult(result);
+    onResult?.(result);
   };
 
   const cancel = () => {
@@ -119,8 +140,18 @@ export function CardCapture({ expectedCount, label = 'Take photo', onResult }: P
           {mode === 'camera' && (
             <>
               <CameraView ref={camera} style={StyleSheet.absoluteFill} facing="back" />
-              <View style={[styles.guide, landscape ? styles.guideLandscape : styles.guidePortrait]} pointerEvents="none">
-                <Text style={styles.guideText}>Fit {expectedCount} card{expectedCount > 1 ? 's' : ''} inside the frame</Text>
+              <View
+                style={[
+                  styles.guide,
+                  landscape ? styles.guideLandscape : table ? styles.guideTablePortrait : styles.guidePortrait,
+                ]}
+                pointerEvents="none"
+              >
+                <Text style={styles.guideText}>
+                  {table
+                    ? 'Fit the board and every hand in the frame'
+                    : `Fit ${expectedCount} card${expectedCount > 1 ? 's' : ''} inside the frame`}
+                </Text>
               </View>
               <Pressable
                 accessibilityLabel="Close camera"
@@ -178,6 +209,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#000' },
   guide: { position: 'absolute', borderWidth: 2, borderColor: colors.primary, borderRadius: 18, alignItems: 'center' },
   guidePortrait: { left: 24, right: 24, top: '28%', height: 200 },
+  guideTablePortrait: { left: 12, right: 12, top: 100, bottom: 150 },
   guideLandscape: { left: 24, right: 130, top: 56, bottom: 48 },
   guideText: { color: colors.text, backgroundColor: '#08110dcc', padding: 8, borderRadius: 8, marginTop: -18, overflow: 'hidden' },
   shutter: {

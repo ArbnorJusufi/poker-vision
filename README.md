@@ -24,8 +24,13 @@ server or API key is involved and photos never leave the device.
 
 - The model finds the rank/suit index in each card corner. A card shows two
   corners and a deck has no duplicates, so detections are merged by card code.
-- If fewer cards than expected are found, overlapping image tiles are scanned
-  too (helps with photos taken from far away).
+- A sharp photo is read in one pass. If any expected card is missing or read
+  with low confidence, detection escalates automatically: sharpened and
+  contrast-stretched variants of the image, then overlapping tiles, then
+  tiles combined with directional sharpening (for motion blur). Slightly blurry,
+  dim or distant photos therefore still work, at the cost of a few extra seconds.
+  Heavy blur (roughly a Gaussian blur radius above 4 px on a 1280 px photo) is
+  beyond what this model can recover.
 - Detected cards fill the slots automatically with a confidence notice. When
   something is missing, conflicts with another player's card, or confidence is
   low, the picker opens with the usable cards pre-selected.
@@ -38,6 +43,28 @@ Automatic detection currently runs on the **web build** (also when installed
 to the iPhone/Android home screen). Native builds (Expo Go) fall back to the
 manual picker because `onnxruntime-web` needs a browser; a native adapter can
 be registered with `CardRecognitionService.setAdapter()`.
+
+### Scan the whole table
+
+"Scan whole table" on the home screen takes **one photo** of the five board
+cards plus every player's two cards. All cards are located (full image plus a
+3x3 grid of overlapping tiles), then grouped by position:
+
+- the grouping that keeps one 5-card board and several 2-card hands as
+  compact as possible is chosen (exact search up to 17 cards, heuristic above);
+- an extra stray card (even card count) is dropped and flagged on the photo;
+- players are numbered clockwise from the top of the picture;
+- face-down cards are ignored.
+
+When every card is read confidently the app goes straight to the results.
+Otherwise it stays on the annotated photo (each card tagged Board, P1, P2, ...)
+with the doubtful cards listed, so you can retake the photo or continue. Cards
+can still be corrected afterwards from "Edit players" on the results screen.
+
+Limits: a photo showing only a few cards, extreme close-ups, and cards whose
+corners are hidden are not reliably read, and a card can occasionally be
+misread. Grouping is positional, so players' hands must be visibly separate
+from each other and from the board. Grouping logic is in `utils/tableLayout.ts`.
 
 Tips for good results: even light, card corners (rank and suit) visible, and
 cards not covering each other's corners.
