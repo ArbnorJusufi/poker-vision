@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,6 +27,8 @@ export function CardCapture({ expectedCount, label = 'Take photo', onResult }: P
   const [status, setStatus] = useState('');
   const [warmStatus, setWarmStatus] = useState<string | null>(null);
   const processing = mode === 'processing';
+  const { width, height } = useWindowDimensions();
+  const landscape = width > height;
 
   useEffect(() => {
     let active = true;
@@ -109,18 +111,29 @@ export function CardCapture({ expectedCount, label = 'Take photo', onResult }: P
           <Text style={styles.warmText}>{warmStatus}</Text>
         </View>
       )}
-      <Modal visible={mode !== 'closed'} animationType="fade" onRequestClose={processing ? cancel : () => setMode('closed')}>
+      <Modal
+        visible={mode !== 'closed'}
+        animationType="fade"
+        supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} onRequestClose={processing ? cancel : () => setMode('closed')}>
         <View style={styles.screen}>
           {mode === 'camera' && (
             <>
               <CameraView ref={camera} style={StyleSheet.absoluteFill} facing="back" />
-              <View style={styles.guide} pointerEvents="none">
+              <View style={[styles.guide, landscape && styles.guideLandscape]} pointerEvents="none">
                 <Text style={styles.guideText}>Fit {expectedCount} card{expectedCount > 1 ? 's' : ''} inside the frame</Text>
               </View>
-              <Pressable accessibilityLabel="Close camera" style={styles.close} onPress={() => setMode('closed')}>
+              <Pressable
+                accessibilityLabel="Close camera"
+                style={[styles.close, landscape && styles.closeLandscape]}
+                onPress={() => setMode('closed')}
+              >
                 <Ionicons name="close" size={28} color={colors.text} />
               </Pressable>
-              <Pressable accessibilityLabel="Take picture" style={styles.shutter} onPress={capture}>
+              <Pressable
+                accessibilityLabel="Take picture"
+                style={[styles.shutter, landscape && styles.shutterLandscape]}
+                onPress={capture}
+              >
                 <View style={styles.shutterInner} />
               </Pressable>
             </>
@@ -133,7 +146,7 @@ export function CardCapture({ expectedCount, label = 'Take photo', onResult }: P
                 style={StyleSheet.absoluteFill}
                 resizeMode="contain"
               />
-              <View style={styles.panel}>
+              <View style={[styles.panel, landscape && styles.panelLandscape]}>
                 <ActivityIndicator size="small" color={colors.primary} />
                 <Text style={styles.panelText} accessibilityLiveRegion="polite">{status}</Text>
                 <Pressable accessibilityLabel="Cancel detection" onPress={cancel} hitSlop={10}>
@@ -174,6 +187,10 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   shutterInner: { flex: 1, alignSelf: 'stretch', backgroundColor: colors.text, borderRadius: 30 },
+  guideLandscape: { left: 24, right: 130, top: 36, bottom: 36, height: undefined },
+  shutterLandscape: { bottom: undefined, top: '50%', marginTop: -36, right: 28, alignSelf: undefined },
+  closeLandscape: { top: 20, right: undefined, left: 20 },
+  panelLandscape: { bottom: 20, maxWidth: 560, alignSelf: 'center' },
   close: { position: 'absolute', top: 54, right: 20, backgroundColor: '#08110daa', padding: 8, borderRadius: 24 },
   panel: {
     position: 'absolute', left: 20, right: 20, bottom: 40, flexDirection: 'row', alignItems: 'center',

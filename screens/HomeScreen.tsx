@@ -1,15 +1,17 @@
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/constants/theme';
+import { contentWidth } from '@/constants/layout';
 import { useGame } from '@/hooks/GameContext';
 
 export function HomeScreen() {
   const router = useRouter();
   const { reset } = useGame();
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.safe}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.brand}><View style={styles.logo}><Ionicons name="diamond" size={25} color={colors.primary} /></View><Text style={styles.brandText}>POKER VISION</Text></View>
       <View style={styles.hero}>
         <Text style={styles.eyebrow}>TEXAS HOLD'EM</Text>
@@ -27,16 +29,18 @@ export function HomeScreen() {
         <Text style={styles.buttonText}>Start new game</Text><Ionicons name="arrow-forward" size={21} color={colors.background} />
       </Pressable>
       <Text style={styles.footnote}>Cards stay on your device</Text>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, padding: 24 },
+  safe: { flex: 1, backgroundColor: colors.background },
+  container: { ...contentWidth, flexGrow: 1, padding: 24 },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
   logo: { width: 42, height: 42, borderRadius: 13, backgroundColor: colors.primaryMuted, alignItems: 'center', justifyContent: 'center' },
   brandText: { color: colors.text, fontSize: 16, fontWeight: '900', letterSpacing: 1.5 },
-  hero: { flex: 1, justifyContent: 'center' },
+  hero: { flex: 1, justifyContent: 'center', minHeight: 200, paddingVertical: 16 },
   eyebrow: { color: colors.primary, fontSize: 13, fontWeight: '800', letterSpacing: 2.5, marginBottom: 14 },
   title: { color: colors.text, fontSize: 44, lineHeight: 49, fontWeight: '900', letterSpacing: -1.5 },
   copy: { color: colors.textMuted, fontSize: 16, lineHeight: 24, marginTop: 20, maxWidth: 390 },

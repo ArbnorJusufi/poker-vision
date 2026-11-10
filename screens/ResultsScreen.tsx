@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@/constants/theme';
+import { contentWidth } from '@/constants/layout';
 import { useGame } from '@/hooks/GameContext';
 import { calculateResults } from '@/utils/pokerEngine';
 import { validateGame } from '@/utils/cardValidation';
@@ -73,7 +74,7 @@ const styles = StyleSheet.create({
   centered: { alignItems: 'center', justifyContent: 'center', padding: 30, gap: 12 },
   errorTitle: { color: colors.text, fontSize: 22, fontWeight: '900' },
   errorCopy: { color: colors.textMuted, textAlign: 'center', marginBottom: 12 },
-  container: { padding: 22, paddingBottom: 40 },
+  container: { ...contentWidth, padding: 22, paddingBottom: 40 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 12, marginBottom: 24 },
   eyebrow: { color: colors.primary, fontSize: 11, fontWeight: '900', letterSpacing: 1.8 },
   title: { color: colors.text, fontSize: 32, fontWeight: '900', marginTop: 6 },

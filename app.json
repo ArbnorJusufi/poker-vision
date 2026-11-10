@@ -3,7 +3,7 @@
     "name": "Poker Vision",
     "slug": "poker-vision",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "scheme": "pokervision",
     "userInterfaceStyle": "dark",
     "plugins": [

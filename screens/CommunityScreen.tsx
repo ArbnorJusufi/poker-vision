@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@/constants/theme';
+import { contentWidth } from '@/constants/layout';
 import { CardPickerModal } from '@/components/CardPickerModal';
 import { CardCapture } from '@/components/CardCapture';
 import { PlayingCard } from '@/components/PlayingCard';
@@ -68,7 +69,7 @@ export function CommunityScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  container: { padding: 22, paddingBottom: 40 },
+  container: { ...contentWidth, padding: 22, paddingBottom: 40 },
   back: { width: 44, height: 44, borderRadius: 14, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', marginBottom: 30 },
   step: { color: colors.primary, fontSize: 12, fontWeight: '900', letterSpacing: 2 },
   title: { color: colors.text, fontSize: 34, fontWeight: '900', marginTop: 8 },

@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@/constants/theme';
+import { contentWidth } from '@/constants/layout';
 import { useGame } from '@/hooks/GameContext';
 import { CardPickerModal } from '@/components/CardPickerModal';
 import { PlayingCard } from '@/components/PlayingCard';
@@ -107,7 +108,7 @@ export function PlayersScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  container: { padding: 22, paddingBottom: 40 },
+  container: { ...contentWidth, padding: 22, paddingBottom: 40 },
   top: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24 },
   back: { width: 44, height: 44, borderRadius: 14, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   step: { color: colors.primary, fontSize: 12, fontWeight: '900', letterSpacing: 2 },
