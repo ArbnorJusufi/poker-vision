@@ -67,7 +67,12 @@ export function CardCapture({ expectedCount, label = 'Take photo', onResult }: P
         <Ionicons name="images-outline" size={19} color={colors.primary} />
         <Text style={styles.secondaryText}>Choose photo</Text>
       </Pressable>
-      {busy && !open && <ActivityIndicator color={colors.primary} />}
+      {busy && !open && (
+        <View style={styles.status}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={styles.statusText}>Detecting cards…</Text>
+        </View>
+      )}
       <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
         <View style={styles.cameraScreen}>
           <CameraView ref={camera} style={StyleSheet.absoluteFill} facing="back" />
@@ -78,7 +83,10 @@ export function CardCapture({ expectedCount, label = 'Take photo', onResult }: P
             <Ionicons name="close" size={28} color={colors.text} />
           </Pressable>
           {busy ? (
-            <ActivityIndicator style={styles.shutter} size="large" color={colors.text} />
+            <View style={styles.shutter}>
+              <ActivityIndicator size="large" color={colors.text} />
+              <Text style={styles.detecting}>Detecting cards…</Text>
+            </View>
           ) : (
             <Pressable accessibilityLabel="Take picture" style={styles.shutter} onPress={capture}>
               <View style={styles.shutterInner} />
@@ -102,6 +110,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 12,
   },
   secondaryText: { color: colors.primary, fontWeight: '700', fontSize: 15 },
+  status: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  statusText: { color: colors.textMuted, fontSize: 13 },
+  detecting: { color: colors.text, marginTop: 10, width: 160, textAlign: 'center', fontWeight: '700' },
   cameraScreen: { flex: 1, backgroundColor: '#000' },
   guide: {
     position: 'absolute', left: 24, right: 24, top: '28%', height: 200, borderWidth: 2,

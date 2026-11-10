@@ -10,7 +10,7 @@ import { PlayingCard } from '@/components/PlayingCard';
 import { useGame } from '@/hooks/GameContext';
 import { RecognitionResult } from '@/types/poker';
 import { notify } from '@/utils/dialogs';
-import { validateRecognizedCards } from '@/utils/recognitionValidation';
+import { describeConfidence, usableRecognizedCards, validateRecognizedCards } from '@/utils/recognitionValidation';
 
 export function CommunityScreen() {
   const router = useRouter();
@@ -23,17 +23,16 @@ export function CommunityScreen() {
   const handleResult = (result: RecognitionResult) => {
     const error = validateRecognizedCards(result.cards, 5, blocked);
     if (error) {
-      setNotice(result.message ?? `${error} Select the cards manually.`);
-      notify('Manual review required', result.message ?? error);
+      const partial = usableRecognizedCards(result.cards, 5, blocked);
+      if (partial.length) setCommunity(partial);
+      const message = result.message ?? `${error} Complete the selection manually.`;
+      setNotice(message);
+      notify('Almost there', message);
       setPicker(true);
       return;
     }
     setCommunity(result.cards);
-    setNotice(
-      result.confidence !== undefined
-        ? `Recognized ${Math.round(result.confidence * 100)}% confidence. Review the cards before continuing.`
-        : 'Cards recognized. Review them before continuing.',
-    );
+    setNotice(describeConfidence(result.confidence));
   };
 
   return (

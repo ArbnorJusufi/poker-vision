@@ -1,30 +1,42 @@
 import { RecognitionResult } from '@/types/poker';
 
 /**
- * Boundary for a future bundled TFLite/CoreML card detector. Expo Camera returns
- * the image URI; a production model adapter should implement recognize().
+ * Boundary between the UI and whatever turns a photo into cards. Screens only
+ * depend on this interface, so the detector can be swapped without UI changes.
  */
 export interface CardRecognitionAdapter {
   recognize(imageUri: string, expectedCount: number): Promise<RecognitionResult>;
 }
 
 class ManualFallbackRecognition implements CardRecognitionAdapter {
-  async recognize(_imageUri: string, _expectedCount: number): Promise<RecognitionResult> {
+  async recognize(): Promise<RecognitionResult> {
     return {
       cards: [],
       source: 'manual',
-      message: 'No trained recognition model is bundled. Select the photographed cards manually.',
+      message:
+        'Automatic detection runs in the web app (including the home-screen install on iPhone). ' +
+        'In this native build, select the photographed cards manually.',
     };
   }
 }
 
-let adapter: CardRecognitionAdapter = new ManualFallbackRecognition();
+let adapter: CardRecognitionAdapter | null = null;
+
+function defaultAdapter(): CardRecognitionAdapter {
+  if (typeof document !== 'undefined') {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { OnnxWebRecognizer } = require('./recognition/onnxWebRecognizer');
+    return new OnnxWebRecognizer();
+  }
+  return new ManualFallbackRecognition();
+}
 
 export const CardRecognitionService = {
   setAdapter(nextAdapter: CardRecognitionAdapter) {
     adapter = nextAdapter;
   },
   recognize(imageUri: string, expectedCount: number) {
+    if (!adapter) adapter = defaultAdapter();
     return adapter.recognize(imageUri, expectedCount);
   },
 };

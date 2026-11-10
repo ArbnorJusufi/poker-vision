@@ -11,7 +11,7 @@ import { CardCapture } from '@/components/CardCapture';
 import { validateGame } from '@/utils/cardValidation';
 import { RecognitionResult } from '@/types/poker';
 import { confirmAction, notify } from '@/utils/dialogs';
-import { validateRecognizedCards } from '@/utils/recognitionValidation';
+import { usableRecognizedCards, validateRecognizedCards } from '@/utils/recognitionValidation';
 
 export function PlayersScreen() {
   const router = useRouter();
@@ -30,7 +30,8 @@ export function PlayersScreen() {
     ];
     const error = validateRecognizedCards(result.cards, 2, others);
     if (error) {
-      notify('Manual review required', result.message ?? error);
+      updatePlayer(playerId, { cards: usableRecognizedCards(result.cards, 2, others) });
+      notify('Almost there', result.message ?? `${error} Complete the selection manually.`);
       setEditingId(playerId);
       return;
     }

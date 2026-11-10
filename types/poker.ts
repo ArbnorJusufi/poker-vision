@@ -43,6 +43,9 @@ export interface PlayerResult {
 
 export interface RecognitionResult {
   cards: Card[];
+  /** Per-card confidence (0-1), parallel to `cards`. */
+  confidences?: number[];
+  /** Lowest per-card confidence. */
   confidence?: number;
   source: 'model' | 'manual';
   message?: string;
