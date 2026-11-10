@@ -62,15 +62,68 @@ are then grouped by position:
 - players are numbered clockwise from the top of the picture;
 - face-down cards are ignored.
 
-When every card is read confidently the app goes straight to the results.
-Otherwise it stays on the annotated photo (each card tagged Board, P1, P2, ...)
-with the doubtful cards listed, so you can retake the photo or continue. Cards
-can still be corrected afterwards from "Edit players" on the results screen.
+The result is never applied silently: the review screen shows the annotated
+photo, every group (Board, Player 1, Player 2, ...) as editable cards, and the
+doubtful cards listed. Tap a group to correct it, then "Confirm and show
+winner". Cards can still be corrected later from "Edit players" on the results
+screen.
 
 Limits: a photo showing only a few cards, extreme close-ups, and cards whose
 corners are hidden are not reliably read, and a card can occasionally be
 misread. Grouping is positional, so players' hands must be visibly separate
 from each other and from the board. Grouping logic is in `utils/tableLayout.ts`.
+
+### Live camera scanner
+
+Opening the camera starts recognition immediately, with no photo needed. The
+detector runs continuously on frames from the live `<video>` and draws what it
+sees on top of the preview:
+
+- **Boxes** around each detected card index with the value and confidence
+  (for example `K♠ 87%`). Green is confident (60% or more), yellow uncertain
+  (35-60%), red recognition failed (below 35%, shown from 20%). Boxes follow the
+  cards as they move; a card is dropped after a few scans that should have seen
+  it, so the view does not flicker or keep ghosts.
+- **Counter** such as `3/5 cards` for the board, or `7 cards - 1 player` in
+  table mode, and a banner. When everything required is recognised and stable,
+  the counter, guide frame and shutter turn green ("All 5 cards detected").
+- **Capture stays available while scanning.** If the live view is not complete,
+  capture asks "Capture anyway?" with what is missing. On capture a
+  full-resolution photo is taken and the full recognition pipeline (the
+  escalating passes above) runs on it.
+- **Confirmation.** The final reading is compared with what the live view had
+  seen ("Live preview and photo agree on all 5 cards" or the differences) and
+  shown with the photo and a confidence dot per card ("seen live", "photo
+  only", "set by you"). Cards can be corrected before confirming; the table
+  scan has the same review with editable groups.
+
+How it stays responsive and modular:
+
+- Inference runs in a **Web Worker** (`public/workers/inference.worker.js`),
+  so the UI thread is never blocked. The model is loaded once and shared by
+  live scanning and photo recognition.
+- `LiveScanner` (`services/recognition/liveScanner.ts`) is one sequential loop:
+  a single scan in flight, a short rest between scans, unchanged video frames
+  skipped. Scans alternate between the whole frame and zoomed windows (sized
+  from the cards already measured), and between plain and mildly sharpened
+  views while something is missing. Soft video is why the enhancement exists,
+  but strong sharpening hurts on already-crisp frames, so only a mild one is used.
+- `LiveTracker` (`live.ts`) smooths confidence and boxes over scans.
+- The camera UI only depends on `LiveScanService` and the `LiveEngine`,
+  `FrameSource` and `LiveRenderer` interfaces. Swapping the ML model means
+  providing another `LiveEngine` (and decoder); `CardCapture`, the overlay and
+  the confirmation screens do not change.
+- Leaving the camera stops the loop, clears the tracker and releases the
+  rendering canvas; the `<video>` is unmounted and `expo-camera` stops the
+  stream. The worker stays alive to avoid reloading the model.
+
+Limits: live scanning is **web only** (also when installed to the home screen).
+Expo Go has no per-frame vision API, so there the camera shows an
+"unavailable" banner and works as capture-then-read. Live scans run about 1-2
+per second on a desktop and slower on phones. Dense tables, small or stylised
+cards (very small indices, unusual court-card art) and soft video are read
+only partly live; capture runs the slower, more thorough pass on the photo, and
+the confirmation screen is where remaining mistakes are fixed.
 
 ### Camera focus
 

@@ -81,6 +81,11 @@ export function PlayersScreen() {
               <View style={styles.captureWrap}>
                 <CardCapture
                   expectedCount={2}
+                  confirmTitle={`${player.name}'s cards`}
+                  blocked={[
+                    ...community,
+                    ...players.filter((other) => other.id !== player.id).flatMap((other) => other.cards),
+                  ]}
                   label={player.cards.length === 2 ? 'Retake' : 'Take photo'}
                   onResult={(result) => handleResult(player.id, result)}
                 />

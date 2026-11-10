@@ -1,23 +1,36 @@
-import { useEffect, useRef, useState } from 'react';
+import { ComponentRef, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@/constants/theme';
+import { LiveOverlay } from '@/components/LiveOverlay';
+import { RecognitionConfirmation } from '@/components/RecognitionConfirmation';
+import { useLiveScan } from '@/hooks/useLiveScan';
 import { CardRecognitionService } from '@/services/CardRecognitionService';
-import { RecognitionResult, TableDetection } from '@/types/poker';
-import { notify } from '@/utils/dialogs';
+import { LiveMode } from '@/services/LiveScanService';
+import { liveCodes } from '@/services/recognition/live';
+import { cardToCode } from '@/services/recognition/yolo';
+import { Card, RecognitionResult, TableDetection } from '@/types/poker';
+import { confirmAction, notify } from '@/utils/dialogs';
+import { captureWarning, counterLabel, describeLive } from '@/utils/liveBanner';
+import { compareRecognition } from '@/utils/liveComparison';
 
 interface Props {
   expectedCount?: number;
   label?: string;
   /** Scan a photo of the whole table instead of a fixed number of cards. */
   table?: boolean;
+  /** Cards that cannot be chosen while correcting, e.g. cards held by other players. */
+  blocked?: Card[];
+  /** Heading of the confirmation screen. */
+  confirmTitle?: string;
   onResult?: (result: RecognitionResult) => void;
-  onTable?: (detection: TableDetection, photoUri: string) => void;
+  /** `liveCodes` are the cards the live preview trusted when the photo was taken. */
+  onTable?: (detection: TableDetection, photoUri: string, liveCodes: string[]) => void;
 }
 
-type Mode = 'closed' | 'camera' | 'processing';
+type Mode = 'closed' | 'camera' | 'processing' | 'confirm';
 type FocusMode = 'on' | 'off';
 
 /**
@@ -33,8 +46,19 @@ const FOCUS_NOTICE_MS = 1400;
 
 const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-export function CardCapture({ expectedCount = 1, label = 'Take photo', table = false, onResult, onTable }: Props) {
+interface Pending {
+  uri: string;
+  result: RecognitionResult;
+  liveCodes: string[];
+}
+
+const BANNER_COLORS = { neutral: colors.textMuted, good: colors.primary, warn: colors.gold, bad: colors.danger } as const;
+
+export function CardCapture({
+  expectedCount = 1, label = 'Take photo', table = false, blocked = [], confirmTitle = 'Detected cards', onResult, onTable,
+}: Props) {
   const camera = useRef<CameraView>(null);
+  const cameraHost = useRef<ComponentRef<typeof View>>(null);
   const run = useRef(0);
   const [permission, requestPermission] = useCameraPermissions();
   const [mode, setMode] = useState<Mode>('closed');
@@ -43,10 +67,16 @@ export function CardCapture({ expectedCount = 1, label = 'Take photo', table = f
   const [warmStatus, setWarmStatus] = useState<string | null>(null);
   const [focusMode, setFocusMode] = useState<FocusMode>(IDLE_FOCUS);
   const [focusing, setFocusing] = useState(false);
+  const [pending, setPending] = useState<Pending | null>(null);
+  const [cameraBox, setCameraBox] = useState({ width: 0, height: 0 });
   const focusTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const processing = mode === 'processing';
   const { width, height } = useWindowDimensions();
   const landscape = width > height;
+  const liveMode: LiveMode = table ? { kind: 'table' } : { kind: 'cards', expected: expectedCount };
+  const live = useLiveScan({ active: mode === 'camera', rootRef: cameraHost, mode: liveMode });
+  const banner = describeLive({ ...live, mode: liveMode });
+  const ready = !!live.snapshot?.stable;
 
   useEffect(() => {
     let active = true;
@@ -83,7 +113,7 @@ export function CardCapture({ expectedCount = 1, label = 'Take photo', table = f
     ];
   };
 
-  const process = async (uri: string) => {
+  const process = async (uri: string, seenLive: string[] = []) => {
     const token = ++run.current;
     setPhotoUri(uri);
     setStatus('Reading photo…');
@@ -106,7 +136,7 @@ export function CardCapture({ expectedCount = 1, label = 'Take photo', table = f
       setMode('closed');
       setPhotoUri(null);
       await pause(80);
-      onTable?.(detection, uri);
+      onTable?.(detection, uri, seenLive);
       return;
     }
 
@@ -118,8 +148,13 @@ export function CardCapture({ expectedCount = 1, label = 'Take photo', table = f
       result = { cards: [], source: 'manual', message: `Detection failed (${reason}). Select the cards manually.` };
     }
     if (token !== run.current) return;
+    setPending({ uri, result, liveCodes: seenLive });
+    setMode('confirm');
+  };
 
+  const finish = async (result: RecognitionResult) => {
     setMode('closed');
+    setPending(null);
     setPhotoUri(null);
     await pause(80);
     onResult?.(result);
@@ -129,6 +164,7 @@ export function CardCapture({ expectedCount = 1, label = 'Take photo', table = f
     run.current += 1;
     setMode('closed');
     setPhotoUri(null);
+    setPending(null);
   };
 
   const openCamera = async () => {
@@ -147,13 +183,23 @@ export function CardCapture({ expectedCount = 1, label = 'Take photo', table = f
     if (!result.canceled) await process(result.assets[0].uri);
   };
 
-  const capture = async () => {
+  const takePicture = async (seenLive: string[]) => {
     try {
-      const photo = await camera.current?.takePictureAsync({ quality: 0.9 });
-      if (photo) await process(photo.uri);
+      const photo = await camera.current?.takePictureAsync({ quality: 1 });
+      if (photo) await process(photo.uri, seenLive);
     } catch {
       notify('Could not take picture', 'Try again or choose a photo from your library.');
     }
+  };
+
+  const capture = () => {
+    const seenLive = live.snapshot ? liveCodes(live.snapshot.cards) : [];
+    const warning = captureWarning(live.snapshot, liveMode);
+    if (warning) {
+      confirmAction('Capture anyway?', warning, 'Capture anyway', () => void takePicture(seenLive));
+      return;
+    }
+    void takePicture(seenLive);
   };
 
   return (
@@ -175,11 +221,20 @@ export function CardCapture({ expectedCount = 1, label = 'Take photo', table = f
       <Modal
         visible={mode !== 'closed'}
         animationType="fade"
-        supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} onRequestClose={processing ? cancel : () => setMode('closed')}>
+        supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']} onRequestClose={processing || mode === 'confirm' ? cancel : () => setMode('closed')}>
         <View style={styles.screen}>
           {mode === 'camera' && (
             <>
-              <CameraView ref={camera} style={StyleSheet.absoluteFill} facing="back" autofocus={focusMode} />
+              <View
+                ref={cameraHost}
+                style={StyleSheet.absoluteFill}
+                onLayout={(event) => setCameraBox(event.nativeEvent.layout)}
+              >
+                <CameraView ref={camera} style={StyleSheet.absoluteFill} facing="back" autofocus={focusMode} />
+              </View>
+              {live.snapshot && (
+                <LiveOverlay cards={live.snapshot.cards} frame={live.snapshot.frame} view={cameraBox} />
+              )}
               <Pressable
                 accessibilityLabel="Tap to focus"
                 style={StyleSheet.absoluteFill}
@@ -195,6 +250,7 @@ export function CardCapture({ expectedCount = 1, label = 'Take photo', table = f
                 style={[
                   styles.guide,
                   landscape ? styles.guideLandscape : table ? styles.guideTablePortrait : styles.guidePortrait,
+                  ready && styles.guideReady,
                 ]}
                 pointerEvents="none"
               >
@@ -204,6 +260,37 @@ export function CardCapture({ expectedCount = 1, label = 'Take photo', table = f
                     : `Fit ${expectedCount} card${expectedCount > 1 ? 's' : ''} inside the frame`}
                 </Text>
               </View>
+              <View
+                accessibilityLabel="Live card counter"
+                style={[
+                  styles.counter, landscape ? styles.counterLandscape : styles.counterPortrait,
+                  { borderColor: ready ? colors.primary : BANNER_COLORS[banner?.tone ?? 'neutral'] },
+                ]}
+                pointerEvents="none"
+              >
+                {live.supported && !live.snapshot && !live.error ? (
+                  <ActivityIndicator size="small" color={colors.textMuted} />
+                ) : (
+                  <Ionicons
+                    name={ready ? 'checkmark-circle' : 'scan-outline'}
+                    size={16}
+                    color={ready ? colors.primary : colors.text}
+                  />
+                )}
+                <Text style={[styles.counterText, ready && { color: colors.primary }]}>
+                  {live.supported ? counterLabel(live.snapshot, liveMode) : 'Live detection off'}
+                </Text>
+              </View>
+              {banner && (
+                <View
+                  style={[styles.banner, landscape ? styles.bannerLandscape : styles.bannerPortrait, { borderColor: BANNER_COLORS[banner.tone] }]}
+                  pointerEvents="none"
+                >
+                  <Text accessibilityLiveRegion="polite" style={[styles.bannerText, { color: BANNER_COLORS[banner.tone] }]}>
+                    {banner.text}
+                  </Text>
+                </View>
+              )}
               <Pressable
                 accessibilityLabel="Close camera"
                 style={[styles.close, landscape ? styles.closeLandscape : styles.closePortrait]}
@@ -221,12 +308,32 @@ export function CardCapture({ expectedCount = 1, label = 'Take photo', table = f
               </Pressable>
               <Pressable
                 accessibilityLabel="Take picture"
-                style={[styles.shutter, landscape ? styles.shutterLandscape : styles.shutterPortrait]}
+                style={[styles.shutter, landscape ? styles.shutterLandscape : styles.shutterPortrait, ready && styles.shutterReady]}
                 onPress={capture}
               >
                 <View style={styles.shutterInner} />
               </Pressable>
             </>
+          )}
+          {mode === 'confirm' && pending && (
+            <RecognitionConfirmation
+              key={pending.uri}
+              photoUri={pending.uri}
+              result={pending.result}
+              expectedCount={expectedCount}
+              comparison={
+                pending.liveCodes.length
+                  ? compareRecognition(pending.liveCodes, pending.result.cards.map(cardToCode))
+                  : null
+              }
+              blocked={blocked}
+              title={confirmTitle}
+              onConfirm={finish}
+              onRetake={() => {
+                setPending(null);
+                void openCamera();
+              }}
+            />
           )}
           {processing && photoUri && (
             <>
@@ -270,6 +377,7 @@ const styles = StyleSheet.create({
   guidePortrait: { left: 24, right: 24, top: '28%', height: 200 },
   guideTablePortrait: { left: 12, right: 12, top: 100, bottom: 150 },
   guideLandscape: { left: 24, right: 130, top: 56, bottom: 48 },
+  guideReady: { borderColor: colors.primary, borderWidth: 4 },
   guideText: { color: colors.text, backgroundColor: '#08110dcc', padding: 8, borderRadius: 8, marginTop: -18, overflow: 'hidden' },
   shutter: {
     position: 'absolute', width: 72, height: 72, borderRadius: 36, borderWidth: 4,
@@ -289,6 +397,21 @@ const styles = StyleSheet.create({
   focusRingLandscape: { left: 0, right: 100, top: '40%' },
   focusBox: { width: 76, height: 76, borderRadius: 14, borderWidth: 2, borderColor: colors.primary },
   focusText: { color: colors.primary, fontWeight: '800', fontSize: 13, backgroundColor: '#08110dcc', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, overflow: 'hidden' },
+  shutterReady: { borderColor: colors.primary },
+  counter: {
+    position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#08110dcc',
+    borderRadius: 16, borderWidth: 1.5, paddingHorizontal: 12, paddingVertical: 7,
+  },
+  counterPortrait: { top: 58, left: 20 },
+  counterLandscape: { top: 22, left: 24 },
+  counterText: { color: colors.text, fontWeight: '900', fontSize: 14 },
+  banner: {
+    position: 'absolute', backgroundColor: '#08110df0', borderRadius: 14, borderWidth: 1.5,
+    paddingHorizontal: 14, paddingVertical: 10,
+  },
+  bannerPortrait: { left: 20, right: 20, bottom: 138 },
+  bannerLandscape: { left: 24, right: 130, bottom: 14 },
+  bannerText: { fontWeight: '800', fontSize: 14, textAlign: 'center' },
   shutterInner: { flex: 1, alignSelf: 'stretch', backgroundColor: colors.text, borderRadius: 30 },
   close: { position: 'absolute', backgroundColor: '#08110daa', padding: 8, borderRadius: 24 },
   closePortrait: { top: 54, right: 20 },

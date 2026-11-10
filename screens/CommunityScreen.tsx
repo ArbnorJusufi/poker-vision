@@ -47,7 +47,10 @@ export function CommunityScreen() {
           {Array.from({ length: 5 }, (_, index) => <PlayingCard key={index} card={community[index]} onPress={() => setPicker(true)} compact />)}
         </View>
         {notice && <Text style={styles.notice}>{notice}</Text>}
-        <CardCapture expectedCount={5} label={community.length === 5 ? 'Retake photo' : 'Take photo'} onResult={handleResult} />
+        <CardCapture
+          expectedCount={5} blocked={blocked} confirmTitle="Community cards"
+          label={community.length === 5 ? 'Retake photo' : 'Take photo'} onResult={handleResult}
+        />
         <Pressable style={styles.manual} onPress={() => setPicker(true)}>
           <Ionicons name="grid-outline" size={19} color={colors.text} /><Text style={styles.manualText}>Enter cards manually</Text>
         </Pressable>
