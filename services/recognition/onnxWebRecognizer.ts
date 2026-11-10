@@ -1,4 +1,4 @@
-import type { CardRecognitionAdapter } from '@/services/CardRecognitionService';
+import type { CardRecognitionAdapter, RecognitionStatusListener } from '@/services/CardRecognitionService';
 import { RecognitionResult } from '@/types/poker';
 import { detectCards } from './detectCards';
 import { INPUT_SIZE, Region, codeToCard, decodeOutput, letterboxFor, rgbaToTensor } from './yolo';
@@ -19,10 +19,15 @@ interface OrtSession {
 interface OrtRuntime {
   env: { wasm: { wasmPaths: string; numThreads: number } };
   Tensor: new (type: string, data: Float32Array, dims: number[]) => unknown;
-  InferenceSession: { create(url: string, options: object): Promise<OrtSession> };
+  InferenceSession: { create(model: Uint8Array, options: object): Promise<OrtSession> };
 }
 
 let sessionPromise: Promise<OrtSession> | null = null;
+let sessionReady = false;
+const statusListeners = new Set<RecognitionStatusListener>();
+
+const emit = (status: string) => statusListeners.forEach((listener) => listener(status));
+const yieldToUi = () => new Promise<void>((resolve) => setTimeout(resolve, 30));
 
 function loadScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -34,16 +39,51 @@ function loadScript(src: string): Promise<void> {
   });
 }
 
-async function getSession(): Promise<OrtSession> {
+async function downloadModel(): Promise<Uint8Array> {
+  const response = await fetch(MODEL_URL);
+  if (!response.ok) throw new Error(`Could not download the card model (${response.status}).`);
+  const total = Number(response.headers.get('content-length')) || 0;
+  if (!response.body) return new Uint8Array(await response.arrayBuffer());
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    emit(
+      total
+        ? `Loading card detector… ${Math.min(99, Math.round((received / total) * 100))}%`
+        : `Loading card detector… ${(received / 1048576).toFixed(0)} MB`,
+    );
+  }
+  const bytes = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return bytes;
+}
+
+function getSession(): Promise<OrtSession> {
   if (!sessionPromise) {
     sessionPromise = (async () => {
+      emit('Loading card detector…');
       const w = window as unknown as { ort?: OrtRuntime };
       if (!w.ort) await loadScript(`${ORT_BASE}ort.wasm.min.js`);
       const ort = w.ort;
       if (!ort) throw new Error('ONNX runtime failed to initialise.');
       ort.env.wasm.wasmPaths = ORT_BASE;
       ort.env.wasm.numThreads = 1;
-      return ort.InferenceSession.create(MODEL_URL, { executionProviders: ['wasm'] });
+      const bytes = await downloadModel();
+      emit('Preparing card detector…');
+      await yieldToUi();
+      const session = await ort.InferenceSession.create(bytes, { executionProviders: ['wasm'] });
+      sessionReady = true;
+      return session;
     })().catch((error) => {
       sessionPromise = null;
       throw error;
@@ -57,7 +97,7 @@ async function loadBitmap(uri: string): Promise<ImageBitmap> {
   return createImageBitmap(await response.blob());
 }
 
-function renderRegion(bitmap: ImageBitmap, region: Region): { rgba: Uint8ClampedArray; region: Region } {
+function renderRegion(bitmap: ImageBitmap, region: Region): Uint8ClampedArray {
   const letterbox = letterboxFor(region.width, region.height);
   const canvas = document.createElement('canvas');
   canvas.width = INPUT_SIZE;
@@ -71,38 +111,61 @@ function renderRegion(bitmap: ImageBitmap, region: Region): { rgba: Uint8Clamped
     bitmap, region.x, region.y, region.width, region.height,
     letterbox.padX, letterbox.padY, letterbox.width, letterbox.height,
   );
-  return { rgba: context.getImageData(0, 0, INPUT_SIZE, INPUT_SIZE).data, region };
+  return context.getImageData(0, 0, INPUT_SIZE, INPUT_SIZE).data;
 }
 
 export class OnnxWebRecognizer implements CardRecognitionAdapter {
-  async recognize(imageUri: string, expectedCount: number): Promise<RecognitionResult> {
-    const [session, bitmap] = await Promise.all([getSession(), loadBitmap(imageUri)]);
-    const ort = (window as unknown as { ort: OrtRuntime }).ort;
-
+  async warmUp(onStatus?: RecognitionStatusListener): Promise<void> {
+    if (sessionReady) return;
+    if (onStatus) statusListeners.add(onStatus);
     try {
-      const runRegion = async (region: Region) => {
-        const { rgba } = renderRegion(bitmap, region);
-        const input = new ort.Tensor('float32', rgbaToTensor(rgba), [1, 3, INPUT_SIZE, INPUT_SIZE]);
-        const outputs = await session.run({ [session.inputNames[0]]: input });
-        const output = outputs[session.outputNames[0]];
-        return decodeOutput(
-          output.data, output.dims[2], letterboxFor(region.width, region.height), region, DETECTION_THRESHOLD,
-        );
-      };
-
-      const { detections } = await detectCards(runRegion, bitmap.width, bitmap.height, expectedCount);
-      const cards = detections.map((detection) => codeToCard(detection.code));
-      const confidences = detections.map((detection) => detection.confidence);
-      const confidence = confidences.length ? Math.min(...confidences) : undefined;
-
-      let message: string | undefined;
-      if (!cards.length) message = 'No cards were detected. Retake the photo with better light and the card corners visible.';
-      else if (cards.length < expectedCount) {
-        message = `Detected ${cards.length} of ${expectedCount} cards. Add the missing cards manually or retake the photo.`;
-      }
-      return { cards, confidences, confidence, source: 'model', message };
+      await getSession();
     } finally {
-      bitmap.close();
+      if (onStatus) statusListeners.delete(onStatus);
+    }
+  }
+
+  async recognize(
+    imageUri: string,
+    expectedCount: number,
+    onStatus?: RecognitionStatusListener,
+  ): Promise<RecognitionResult> {
+    if (onStatus) statusListeners.add(onStatus);
+    try {
+      onStatus?.(sessionReady ? 'Reading photo…' : 'Loading card detector…');
+      const [session, bitmap] = await Promise.all([getSession(), loadBitmap(imageUri)]);
+      const ort = (window as unknown as { ort: OrtRuntime }).ort;
+
+      try {
+        const runRegion = async (region: Region) => {
+          emit(region.width < bitmap.width ? 'Looking closer…' : 'Detecting cards…');
+          await yieldToUi();
+          const rgba = renderRegion(bitmap, region);
+          const input = new ort.Tensor('float32', rgbaToTensor(rgba), [1, 3, INPUT_SIZE, INPUT_SIZE]);
+          const outputs = await session.run({ [session.inputNames[0]]: input });
+          const output = outputs[session.outputNames[0]];
+          return decodeOutput(
+            output.data, output.dims[2], letterboxFor(region.width, region.height), region, DETECTION_THRESHOLD,
+          );
+        };
+
+        const { detections } = await detectCards(runRegion, bitmap.width, bitmap.height, expectedCount);
+        const cards = detections.map((detection) => codeToCard(detection.code));
+        const confidences = detections.map((detection) => detection.confidence);
+        const confidence = confidences.length ? Math.min(...confidences) : undefined;
+
+        let message: string | undefined;
+        if (!cards.length) {
+          message = 'No cards were detected. Retake the photo with better light and the card corners visible.';
+        } else if (cards.length < expectedCount) {
+          message = `Detected ${cards.length} of ${expectedCount} cards. Add the missing cards manually or retake the photo.`;
+        }
+        return { cards, confidences, confidence, source: 'model', message };
+      } finally {
+        bitmap.close();
+      }
+    } finally {
+      if (onStatus) statusListeners.delete(onStatus);
     }
   }
 }
