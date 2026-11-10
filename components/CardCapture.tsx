@@ -5,6 +5,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, overlay } from '@/constants/theme';
 import { LiveOverlay } from '@/components/LiveOverlay';
+import { LAYOUT_TIPS, LayoutExample } from '@/components/TableLayoutGuide';
 import { RecognitionConfirmation } from '@/components/RecognitionConfirmation';
 import { useLiveScan } from '@/hooks/useLiveScan';
 import { CardRecognitionService } from '@/services/CardRecognitionService';
@@ -68,6 +69,7 @@ export function CardCapture({
   const [focusMode, setFocusMode] = useState<FocusMode>(IDLE_FOCUS);
   const [focusing, setFocusing] = useState(false);
   const [pending, setPending] = useState<Pending | null>(null);
+  const [showLayout, setShowLayout] = useState(false);
   const [cameraBox, setCameraBox] = useState({ width: 0, height: 0 });
   const focusTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const processing = mode === 'processing';
@@ -97,6 +99,7 @@ export function CardCapture({
 
   useEffect(() => {
     if (mode !== 'camera') {
+      setShowLayout(false);
       clearFocusTimers();
       setFocusMode(IDLE_FOCUS);
       setFocusing(false);
@@ -281,6 +284,27 @@ export function CardCapture({
                   {live.supported ? counterLabel(live.snapshot, liveMode) : 'Live detection off'}
                 </Text>
               </View>
+              {table && (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={showLayout ? 'Hide layout example' : 'Show layout example'}
+                  style={[styles.layoutButton, landscape ? styles.layoutButtonLandscape : styles.layoutButtonPortrait]}
+                  onPress={() => setShowLayout((open) => !open)}
+                >
+                  <Ionicons name="grid-outline" size={15} color={overlay.text} />
+                  <Text style={styles.layoutButtonText}>{showLayout ? 'Hide layout' : 'Layout'}</Text>
+                </Pressable>
+              )}
+              {table && showLayout && (
+                <Pressable
+                  accessibilityLabel="Layout example. Tap to close"
+                  style={[styles.layoutSheet, landscape ? styles.layoutSheetLandscape : styles.layoutSheetPortrait]}
+                  onPress={() => setShowLayout(false)}
+                >
+                  <View style={landscape ? styles.layoutImageLandscape : undefined}><LayoutExample radiusSize={10} /></View>
+                  <Text style={styles.layoutSheetText}>{LAYOUT_TIPS[0]} {LAYOUT_TIPS[2]}</Text>
+                </Pressable>
+              )}
               {banner && (
                 <View
                   style={[styles.banner, landscape ? styles.bannerLandscape : styles.bannerPortrait, { borderColor: BANNER_COLORS[banner.tone] }]}
@@ -402,6 +426,18 @@ const styles = StyleSheet.create({
     position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: overlay.scrim,
     borderRadius: 16, borderWidth: 1.5, paddingHorizontal: 12, paddingVertical: 7,
   },
+  layoutButton: {
+    position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: overlay.scrim,
+    borderRadius: 16, paddingHorizontal: 12, paddingVertical: 7,
+  },
+  layoutButtonPortrait: { top: 108, right: 20 },
+  layoutButtonLandscape: { top: 72, right: 28 },
+  layoutButtonText: { color: overlay.text, fontWeight: '800', fontSize: 13 },
+  layoutSheet: { position: 'absolute', backgroundColor: overlay.scrimStrong, borderRadius: 16, padding: 10, gap: 8 },
+  layoutSheetPortrait: { left: 16, right: 16, top: 156 },
+  layoutSheetLandscape: { left: 24, right: 130, top: 64, flexDirection: 'row', alignItems: 'center' },
+  layoutImageLandscape: { width: '55%' },
+  layoutSheetText: { flex: 1, color: overlay.text, fontSize: 13, lineHeight: 19 },
   counterPortrait: { top: 58, left: 20 },
   counterLandscape: { top: 22, left: 24 },
   counterText: { color: overlay.text, fontWeight: '900', fontSize: 14 },

@@ -78,6 +78,15 @@ to the iPhone/Android home screen). Native builds (Expo Go) fall back to the
 manual picker because `onnxruntime-web` needs a browser; a native adapter can
 be registered with `CardRecognitionService.setAdapter()`.
 
+### Layout guide
+
+The table screen opens with an example photo (`assets/table-layout.jpg`) and the
+layout rules that read best: board in one straight row in the middle, every
+hand side by side with clear space around it, no overlapping corners, shot from
+above in landscape with even light. In the camera the **Layout** button shows
+the same example without leaving the camera. Component:
+`components/TableLayoutGuide.tsx`.
+
 ### Scan the whole table
 
 "Scan whole table" on the home screen takes **one photo** of the five board

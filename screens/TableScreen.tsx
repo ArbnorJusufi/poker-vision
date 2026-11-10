@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, shadow } from '@/constants/theme';
 import { AppHeader } from '@/components/AppHeader';
 import { AiCheck } from '@/components/AiCheck';
+import { TableLayoutGuide } from '@/components/TableLayoutGuide';
 import { Button, ScreenTitle } from '@/components/ui';
 import { useAiReading } from '@/hooks/useAiReading';
 import { compareTable, usableTable } from '@/services/ai/agreement';
@@ -52,6 +53,7 @@ export function TableScreen() {
   const [scan, setScan] = useState<Scan | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
   const [editing, setEditing] = useState<number | null>(null);
+  const [showTips, setShowTips] = useState(false);
   const [aiKeys, setAiKeys] = useState<Set<string>>(new Set());
   const ai = useAiReading(scan?.uri ?? null, { kind: 'table' });
 
@@ -220,6 +222,18 @@ export function TableScreen() {
           </View>
         )}
 
+        {(!scan || showTips) && <TableLayoutGuide />}
+        {scan && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showTips }}
+            style={styles.tipsToggle}
+            onPress={() => setShowTips((open) => !open)}
+          >
+            <Ionicons name={showTips ? 'chevron-up' : 'grid-outline'} size={16} color={colors.textMuted} />
+            <Text style={styles.tipsToggleText}>{showTips ? 'Hide layout tips' : 'Layout tips for a better scan'}</Text>
+          </Pressable>
+        )}
         <CardCapture table label={scan ? 'Scan again' : 'Open camera'} onTable={handleTable} />
       </ScrollView>
       {active && editing !== null && (
@@ -254,6 +268,8 @@ const styles = StyleSheet.create({
   groupCards: { flexDirection: 'row', gap: 8 },
   groupCard: { alignItems: 'center', gap: 4 },
   reading: { fontSize: 11, fontWeight: '800' },
+  tipsToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 40, marginBottom: 8 },
+  tipsToggleText: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
   aiResult: { backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.primary, padding: 14, gap: 12 },
   aiSame: { borderColor: colors.success },
   aiHead: { flexDirection: 'row', gap: 8, alignItems: 'center' },
