@@ -119,19 +119,19 @@ export function CardCapture({ expectedCount, label = 'Take photo', onResult }: P
           {mode === 'camera' && (
             <>
               <CameraView ref={camera} style={StyleSheet.absoluteFill} facing="back" />
-              <View style={[styles.guide, landscape && styles.guideLandscape]} pointerEvents="none">
+              <View style={[styles.guide, landscape ? styles.guideLandscape : styles.guidePortrait]} pointerEvents="none">
                 <Text style={styles.guideText}>Fit {expectedCount} card{expectedCount > 1 ? 's' : ''} inside the frame</Text>
               </View>
               <Pressable
                 accessibilityLabel="Close camera"
-                style={[styles.close, landscape && styles.closeLandscape]}
+                style={[styles.close, landscape ? styles.closeLandscape : styles.closePortrait]}
                 onPress={() => setMode('closed')}
               >
                 <Ionicons name="close" size={28} color={colors.text} />
               </Pressable>
               <Pressable
                 accessibilityLabel="Take picture"
-                style={[styles.shutter, landscape && styles.shutterLandscape]}
+                style={[styles.shutter, landscape ? styles.shutterLandscape : styles.shutterPortrait]}
                 onPress={capture}
               >
                 <View style={styles.shutterInner} />
@@ -146,7 +146,7 @@ export function CardCapture({ expectedCount, label = 'Take photo', onResult }: P
                 style={StyleSheet.absoluteFill}
                 resizeMode="contain"
               />
-              <View style={[styles.panel, landscape && styles.panelLandscape]}>
+              <View style={[styles.panel, landscape ? styles.panelLandscape : styles.panelPortrait]}>
                 <ActivityIndicator size="small" color={colors.primary} />
                 <Text style={styles.panelText} accessibilityLiveRegion="polite">{status}</Text>
                 <Pressable accessibilityLabel="Cancel detection" onPress={cancel} hitSlop={10}>
@@ -176,27 +176,27 @@ const styles = StyleSheet.create({
   warm: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   warmText: { color: colors.textMuted, fontSize: 12 },
   screen: { flex: 1, backgroundColor: '#000' },
-  guide: {
-    position: 'absolute', left: 24, right: 24, top: '28%', height: 200, borderWidth: 2,
-    borderColor: colors.primary, borderRadius: 18, alignItems: 'center',
-  },
+  guide: { position: 'absolute', borderWidth: 2, borderColor: colors.primary, borderRadius: 18, alignItems: 'center' },
+  guidePortrait: { left: 24, right: 24, top: '28%', height: 200 },
+  guideLandscape: { left: 24, right: 130, top: 56, bottom: 48 },
   guideText: { color: colors.text, backgroundColor: '#08110dcc', padding: 8, borderRadius: 8, marginTop: -18, overflow: 'hidden' },
   shutter: {
-    position: 'absolute', bottom: 48, alignSelf: 'center', width: 72, height: 72,
-    borderRadius: 36, borderWidth: 4, borderColor: colors.text, padding: 5,
-    alignItems: 'center', justifyContent: 'center',
+    position: 'absolute', width: 72, height: 72, borderRadius: 36, borderWidth: 4,
+    borderColor: colors.text, padding: 5, alignItems: 'center', justifyContent: 'center',
   },
+  shutterPortrait: { bottom: 48, alignSelf: 'center' },
+  shutterLandscape: { right: 28, top: '50%', marginTop: -36 },
   shutterInner: { flex: 1, alignSelf: 'stretch', backgroundColor: colors.text, borderRadius: 30 },
-  guideLandscape: { left: 24, right: 130, top: 36, bottom: 36, height: undefined },
-  shutterLandscape: { bottom: undefined, top: '50%', marginTop: -36, right: 28, alignSelf: undefined },
-  closeLandscape: { top: 20, right: undefined, left: 20 },
-  panelLandscape: { bottom: 20, maxWidth: 560, alignSelf: 'center' },
-  close: { position: 'absolute', top: 54, right: 20, backgroundColor: '#08110daa', padding: 8, borderRadius: 24 },
+  close: { position: 'absolute', backgroundColor: '#08110daa', padding: 8, borderRadius: 24 },
+  closePortrait: { top: 54, right: 20 },
+  closeLandscape: { top: 20, right: 28 },
   panel: {
-    position: 'absolute', left: 20, right: 20, bottom: 40, flexDirection: 'row', alignItems: 'center',
+    position: 'absolute', left: 20, right: 20, flexDirection: 'row', alignItems: 'center',
     gap: 12, backgroundColor: '#08110df0', borderRadius: 16, borderWidth: 1, borderColor: colors.border,
     paddingVertical: 14, paddingHorizontal: 16,
   },
+  panelPortrait: { bottom: 40 },
+  panelLandscape: { bottom: 20 },
   panelText: { flex: 1, color: colors.text, fontSize: 15, fontWeight: '700' },
   cancel: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
 });
