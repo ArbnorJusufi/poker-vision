@@ -32,9 +32,14 @@ export function CardPickerModal({ visible, selected, blocked, limit, title, onCh
             <Text style={styles.title}>{title}</Text>
             <Text style={styles.subtitle}>{selected.length} of {limit} selected</Text>
           </View>
-          <Pressable onPress={onClose} disabled={selected.length !== limit}>
-            <Text style={[styles.done, selected.length !== limit && styles.disabled]}>Done</Text>
-          </Pressable>
+          <View style={styles.actions}>
+            <Pressable onPress={() => onChange([])} disabled={!selected.length}>
+              <Text style={[styles.clear, !selected.length && styles.disabled]}>Clear</Text>
+            </Pressable>
+            <Pressable onPress={onClose}>
+              <Text style={styles.done}>{selected.length === limit ? 'Done' : 'Close'}</Text>
+            </Pressable>
+          </View>
         </View>
         <ScrollView contentContainerStyle={styles.content}>
           {SUITS.map((suit) => (
@@ -73,6 +78,8 @@ const styles = StyleSheet.create({
   },
   title: { color: colors.text, fontSize: 22, fontWeight: '800' },
   subtitle: { color: colors.textMuted, marginTop: 4 },
+  actions: { flexDirection: 'row', gap: 20 },
+  clear: { color: colors.textMuted, fontSize: 17, fontWeight: '600' },
   done: { color: colors.primary, fontSize: 17, fontWeight: '700' },
   disabled: { opacity: 0.35 },
   content: { padding: 16, paddingBottom: 40 },

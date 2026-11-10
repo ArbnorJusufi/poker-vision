@@ -6,13 +6,28 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@/constants/theme';
 import { useGame } from '@/hooks/GameContext';
 import { calculateResults } from '@/utils/pokerEngine';
+import { validateGame } from '@/utils/cardValidation';
 import { PlayingCard } from '@/components/PlayingCard';
 
 export function ResultsScreen() {
   const router = useRouter();
   const { community, players, reset } = useGame();
-  const results = useMemo(() => calculateResults(community, players), [community, players]);
+  const problem = useMemo(() => validateGame(community, players), [community, players]);
+  const results = useMemo(() => (problem ? [] : calculateResults(community, players)), [problem, community, players]);
   const tied = results.filter((result) => result.isWinner).length > 1;
+
+  if (problem) {
+    return (
+      <SafeAreaView style={[styles.safe, styles.centered]}>
+        <Ionicons name="alert-circle-outline" size={44} color={colors.danger} />
+        <Text style={styles.errorTitle}>No results to show</Text>
+        <Text style={styles.errorCopy}>{problem}</Text>
+        <Pressable style={styles.primary} onPress={() => router.replace('/')}>
+          <Text style={styles.primaryText}>Back to start</Text>
+        </Pressable>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -55,6 +70,9 @@ export function ResultsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
+  centered: { alignItems: 'center', justifyContent: 'center', padding: 30, gap: 12 },
+  errorTitle: { color: colors.text, fontSize: 22, fontWeight: '900' },
+  errorCopy: { color: colors.textMuted, textAlign: 'center', marginBottom: 12 },
   container: { padding: 22, paddingBottom: 40 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 12, marginBottom: 24 },
   eyebrow: { color: colors.primary, fontSize: 11, fontWeight: '900', letterSpacing: 1.8 },
@@ -80,6 +98,6 @@ const styles = StyleSheet.create({
   share: { color: colors.textMuted, fontSize: 11, marginTop: 7 },
   secondary: { height: 54, borderRadius: 15, borderWidth: 1, borderColor: colors.border, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
   secondaryText: { color: colors.text, fontWeight: '800' },
-  primary: { height: 56, borderRadius: 15, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  primary: { height: 56, alignSelf: 'stretch', borderRadius: 15, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   primaryText: { color: colors.background, fontWeight: '900', fontSize: 16 },
 });

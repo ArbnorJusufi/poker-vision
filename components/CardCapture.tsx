@@ -1,33 +1,34 @@
 import { useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@/constants/theme';
 import { CardRecognitionService } from '@/services/CardRecognitionService';
+import { RecognitionResult } from '@/types/poker';
+import { notify } from '@/utils/dialogs';
 
 interface Props {
   expectedCount: number;
-  onManualEntry: (message?: string) => void;
+  label?: string;
+  onResult: (result: RecognitionResult) => void;
 }
 
-export function CardCapture({ expectedCount, onManualEntry }: Props) {
+export function CardCapture({ expectedCount, label = 'Take photo', onResult }: Props) {
   const camera = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
-  const [active, setActive] = useState(false);
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const process = async (uri: string) => {
     setBusy(true);
     try {
-      const result = await CardRecognitionService.recognize(uri, expectedCount);
-      if (result.cards.length !== expectedCount) onManualEntry(result.message);
-      else onManualEntry('Recognition adapter returned cards; review them before continuing.');
+      onResult(await CardRecognitionService.recognize(uri, expectedCount));
     } catch {
-      onManualEntry('Recognition failed. Select the cards manually.');
+      onResult({ cards: [], source: 'manual', message: 'Recognition failed. Select the cards manually.' });
     } finally {
       setBusy(false);
-      setActive(false);
+      setOpen(false);
     }
   };
 
@@ -35,11 +36,11 @@ export function CardCapture({ expectedCount, onManualEntry }: Props) {
     if (!permission?.granted) {
       const next = await requestPermission();
       if (!next.granted) {
-        Alert.alert('Camera permission needed', 'Enable camera access in system settings, or choose a photo.');
+        notify('Camera permission needed', 'Enable camera access in system settings, or choose a photo instead.');
         return;
       }
     }
-    setActive(true);
+    setOpen(true);
   };
 
   const choosePhoto = async () => {
@@ -47,64 +48,71 @@ export function CardCapture({ expectedCount, onManualEntry }: Props) {
     if (!result.canceled) await process(result.assets[0].uri);
   };
 
-  if (active) {
-    return (
-      <View style={styles.cameraWrap}>
-        <CameraView ref={camera} style={styles.camera} facing="back" />
-        <View style={styles.guide}><Text style={styles.guideText}>Fit {expectedCount} cards inside the frame</Text></View>
-        <Pressable
-          accessibilityLabel="Take picture"
-          style={styles.shutter}
-          disabled={busy}
-          onPress={async () => {
-            const photo = await camera.current?.takePictureAsync({ quality: 0.9 });
-            if (photo) await process(photo.uri);
-          }}
-        ><View style={styles.shutterInner} /></Pressable>
-        <Pressable style={styles.close} onPress={() => setActive(false)}>
-          <Ionicons name="close" size={28} color={colors.text} />
-        </Pressable>
-      </View>
-    );
-  }
+  const capture = async () => {
+    try {
+      const photo = await camera.current?.takePictureAsync({ quality: 0.9 });
+      if (photo) await process(photo.uri);
+    } catch {
+      notify('Could not take picture', 'Try again or choose a photo from your library.');
+    }
+  };
 
   return (
     <View style={styles.actions}>
-      <Pressable style={styles.primary} onPress={openCamera}>
-        <Ionicons name="camera" size={20} color={colors.background} />
-        <Text style={styles.primaryText}>Open camera</Text>
+      <Pressable style={styles.primary} onPress={openCamera} disabled={busy}>
+        <Ionicons name="camera" size={19} color={colors.background} />
+        <Text style={styles.primaryText}>{label}</Text>
       </Pressable>
-      <Pressable style={styles.secondary} onPress={choosePhoto}>
-        <Ionicons name="images-outline" size={20} color={colors.primary} />
+      <Pressable style={styles.secondary} onPress={choosePhoto} disabled={busy}>
+        <Ionicons name="images-outline" size={19} color={colors.primary} />
         <Text style={styles.secondaryText}>Choose photo</Text>
       </Pressable>
+      {busy && !open && <ActivityIndicator color={colors.primary} />}
+      <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
+        <View style={styles.cameraScreen}>
+          <CameraView ref={camera} style={StyleSheet.absoluteFill} facing="back" />
+          <View style={styles.guide} pointerEvents="none">
+            <Text style={styles.guideText}>Fit {expectedCount} card{expectedCount > 1 ? 's' : ''} inside the frame</Text>
+          </View>
+          <Pressable accessibilityLabel="Close camera" style={styles.close} onPress={() => setOpen(false)}>
+            <Ionicons name="close" size={28} color={colors.text} />
+          </Pressable>
+          {busy ? (
+            <ActivityIndicator style={styles.shutter} size="large" color={colors.text} />
+          ) : (
+            <Pressable accessibilityLabel="Take picture" style={styles.shutter} onPress={capture}>
+              <View style={styles.shutterInner} />
+            </Pressable>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  actions: { gap: 12 },
+  actions: { gap: 10 },
   primary: {
-    backgroundColor: colors.primary, minHeight: 52, borderRadius: 14, flexDirection: 'row',
-    alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: colors.primary, minHeight: 48, borderRadius: 14, flexDirection: 'row',
+    alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 12,
   },
-  primaryText: { color: colors.background, fontWeight: '800', fontSize: 16 },
+  primaryText: { color: colors.background, fontWeight: '800', fontSize: 15 },
   secondary: {
-    minHeight: 52, borderRadius: 14, borderWidth: 1, borderColor: colors.border,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: colors.border,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 12,
   },
-  secondaryText: { color: colors.primary, fontWeight: '700', fontSize: 16 },
-  cameraWrap: { height: 440, borderRadius: 20, overflow: 'hidden', position: 'relative' },
-  camera: { flex: 1 },
+  secondaryText: { color: colors.primary, fontWeight: '700', fontSize: 15 },
+  cameraScreen: { flex: 1, backgroundColor: '#000' },
   guide: {
-    position: 'absolute', left: 28, right: 28, top: 100, height: 180, borderWidth: 2,
-    borderColor: colors.primary, borderRadius: 16, alignItems: 'center', justifyContent: 'flex-start',
+    position: 'absolute', left: 24, right: 24, top: '28%', height: 200, borderWidth: 2,
+    borderColor: colors.primary, borderRadius: 18, alignItems: 'center',
   },
-  guideText: { color: colors.text, backgroundColor: '#08110dcc', padding: 8, borderRadius: 8, marginTop: -38 },
+  guideText: { color: colors.text, backgroundColor: '#08110dcc', padding: 8, borderRadius: 8, marginTop: -18, overflow: 'hidden' },
   shutter: {
-    position: 'absolute', bottom: 20, alignSelf: 'center', width: 68, height: 68,
-    borderRadius: 34, borderWidth: 4, borderColor: colors.text, padding: 5,
+    position: 'absolute', bottom: 48, alignSelf: 'center', width: 72, height: 72,
+    borderRadius: 36, borderWidth: 4, borderColor: colors.text, padding: 5,
+    alignItems: 'center', justifyContent: 'center',
   },
-  shutterInner: { flex: 1, backgroundColor: colors.text, borderRadius: 30 },
-  close: { position: 'absolute', top: 16, right: 16, backgroundColor: '#08110daa', padding: 8, borderRadius: 24 },
+  shutterInner: { flex: 1, alignSelf: 'stretch', backgroundColor: colors.text, borderRadius: 30 },
+  close: { position: 'absolute', top: 54, right: 20, backgroundColor: '#08110daa', padding: 8, borderRadius: 24 },
 });

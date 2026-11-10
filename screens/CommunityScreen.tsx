@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,9 @@ import { CardPickerModal } from '@/components/CardPickerModal';
 import { CardCapture } from '@/components/CardCapture';
 import { PlayingCard } from '@/components/PlayingCard';
 import { useGame } from '@/hooks/GameContext';
+import { RecognitionResult } from '@/types/poker';
+import { notify } from '@/utils/dialogs';
+import { validateRecognizedCards } from '@/utils/recognitionValidation';
 
 export function CommunityScreen() {
   const router = useRouter();
@@ -15,9 +18,22 @@ export function CommunityScreen() {
   const [picker, setPicker] = useState(false);
   const blocked = players.flatMap((player) => player.cards);
 
-  const openManual = (message?: string) => {
-    if (message) Alert.alert('Manual review required', message);
-    setPicker(true);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const handleResult = (result: RecognitionResult) => {
+    const error = validateRecognizedCards(result.cards, 5, blocked);
+    if (error) {
+      setNotice(result.message ?? `${error} Select the cards manually.`);
+      notify('Manual review required', result.message ?? error);
+      setPicker(true);
+      return;
+    }
+    setCommunity(result.cards);
+    setNotice(
+      result.confidence !== undefined
+        ? `Recognized ${Math.round(result.confidence * 100)}% confidence. Review the cards before continuing.`
+        : 'Cards recognized. Review them before continuing.',
+    );
   };
 
   return (
@@ -30,7 +46,8 @@ export function CommunityScreen() {
         <View style={styles.cards}>
           {Array.from({ length: 5 }, (_, index) => <PlayingCard key={index} card={community[index]} onPress={() => setPicker(true)} compact />)}
         </View>
-        <CardCapture expectedCount={5} onManualEntry={openManual} />
+        {notice && <Text style={styles.notice}>{notice}</Text>}
+        <CardCapture expectedCount={5} label={community.length === 5 ? 'Retake photo' : 'Take photo'} onResult={handleResult} />
         <Pressable style={styles.manual} onPress={() => setPicker(true)}>
           <Ionicons name="grid-outline" size={19} color={colors.text} /><Text style={styles.manualText}>Enter cards manually</Text>
         </Pressable>
@@ -58,6 +75,7 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 34, fontWeight: '900', marginTop: 8 },
   copy: { color: colors.textMuted, fontSize: 15, lineHeight: 22, marginTop: 10, marginBottom: 25 },
   cards: { flexDirection: 'row', gap: 8, justifyContent: 'center', backgroundColor: colors.surface, paddingVertical: 22, borderRadius: 18, marginBottom: 20 },
+  notice: { color: colors.textMuted, backgroundColor: colors.surface, padding: 12, borderRadius: 12, marginBottom: 14, lineHeight: 19 },
   manual: { minHeight: 52, marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   manualText: { color: colors.text, fontWeight: '700' },
   continue: { height: 56, backgroundColor: colors.primary, borderRadius: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 15 },

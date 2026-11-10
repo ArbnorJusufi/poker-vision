@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Card, Player, Rank, Suit } from '@/types/poker';
 import { calculateResults, evaluateBestHand } from './pokerEngine';
 import { findDuplicateCards, validateGame } from './cardValidation';
+import { validateRecognizedCards } from './recognitionValidation';
 import { CardRecognitionService } from '@/services/CardRecognitionService';
 
 const suitMap: Record<string, Suit> = { h: 'hearts', d: 'diamonds', c: 'clubs', s: 'spades' };
@@ -69,5 +70,42 @@ describe('game validation and recognition fallback', () => {
     const result = await CardRecognitionService.recognize('file://photo.jpg', 5);
     expect(result.source).toBe('manual');
     expect(result.cards).toHaveLength(0);
+  });
+});
+
+describe('recognition validation', () => {
+  it('rejects incomplete recognition', () => {
+    expect(validateRecognizedCards(cards('Ah Kh'), 5, [])).toContain('Expected 5');
+  });
+  it('rejects duplicates inside a recognition result', () => {
+    expect(validateRecognizedCards(cards('Ah Ah'), 2, [])).toContain('more than once');
+  });
+  it('rejects cards already used elsewhere', () => {
+    expect(validateRecognizedCards(cards('Ah Kh'), 2, cards('Kh'))).toContain('already used');
+  });
+  it('accepts a clean result', () => {
+    expect(validateRecognizedCards(cards('Ah Kh'), 2, cards('2c'))).toBeNull();
+  });
+});
+
+describe('edge cases', () => {
+  it('ranks a full house over a flush and picks the higher trips', () => {
+    const community = cards('Kh Kd 9h 9s 2h');
+    const players: Player[] = [
+      { id: '1', name: 'One', cards: cards('Kc 3c') },
+      { id: '2', name: 'Two', cards: cards('9d 9c') },
+    ];
+    const results = calculateResults(community, players);
+    expect(results[1].hand.category).toBe('Four of a Kind');
+    expect(results[1].isWinner).toBe(true);
+    expect(results[0].percentage).toBe(0);
+  });
+  it('plays the board when it is the best hand (tie)', () => {
+    const community = cards('Ah Kd Qs Jc 10h');
+    const players: Player[] = [
+      { id: '1', name: 'One', cards: cards('2c 3d') },
+      { id: '2', name: 'Two', cards: cards('4c 5d') },
+    ];
+    expect(calculateResults(community, players).map((r) => r.percentage)).toEqual([50, 50]);
   });
 });

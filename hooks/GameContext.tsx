@@ -1,4 +1,4 @@
-import { PropsWithChildren, createContext, useContext, useMemo, useState } from 'react';
+import { PropsWithChildren, createContext, useContext, useMemo, useRef, useState } from 'react';
 import { Card, Player } from '@/types/poker';
 
 interface GameContextValue {
@@ -12,25 +12,26 @@ interface GameContextValue {
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
-const createPlayer = (number: number): Player => ({
-  id: `${Date.now()}-${number}`,
-  name: `Player ${number}`,
-  cards: [],
-});
 
 export function GameProvider({ children }: PropsWithChildren) {
   const [community, setCommunity] = useState<Card[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
+  const counter = useRef(0);
+  const createPlayer = (): Player => {
+    counter.current += 1;
+    return { id: `player-${counter.current}`, name: `Player ${counter.current}`, cards: [] };
+  };
 
   const value = useMemo<GameContextValue>(() => ({
     community,
     players,
     setCommunity,
-    addPlayer: () => setPlayers((current) => [...current, createPlayer(current.length + 1)]),
+    addPlayer: () => setPlayers((current) => [...current, createPlayer()]),
     updatePlayer: (id, patch) =>
       setPlayers((current) => current.map((player) => player.id === id ? { ...player, ...patch } : player)),
     removePlayer: (id) => setPlayers((current) => current.filter((player) => player.id !== id)),
     reset: () => {
+      counter.current = 0;
       setCommunity([]);
       setPlayers([]);
     },
