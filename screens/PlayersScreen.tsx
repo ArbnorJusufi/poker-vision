@@ -3,7 +3,9 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '@/constants/theme';
+import { AppHeader } from '@/components/AppHeader';
+import { Button, ScreenTitle } from '@/components/ui';
+import { colors, shadow } from '@/constants/theme';
 import { contentWidth } from '@/constants/layout';
 import { useGame } from '@/hooks/GameContext';
 import { CardPickerModal } from '@/components/CardPickerModal';
@@ -49,14 +51,10 @@ export function PlayersScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <AppHeader onBack={() => router.back()} />
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <View style={styles.top}>
-          <Pressable style={styles.back} onPress={() => router.back()}><Ionicons name="arrow-back" size={24} color={colors.text} /></Pressable>
-          <Text style={styles.step}>STEP 2 OF 2</Text>
-        </View>
-        <Text style={styles.title}>Players</Text>
-        <Text style={styles.copy}>Add every player in the showdown and capture their two private cards.</Text>
+        <ScreenTitle kicker="Step 2 of 2" title="Players" copy="Add every player in the showdown and capture their two private cards." />
         {players.length === 0 && (
           <View style={styles.empty}>
             <Ionicons name="people-outline" size={34} color={colors.textMuted} />
@@ -94,12 +92,8 @@ export function PlayersScreen() {
             <Pressable onPress={() => setEditingId(player.id)}><Text style={styles.manual}>Select or correct cards manually</Text></Pressable>
           </View>
         ))}
-        <Pressable style={styles.add} onPress={addPlayer}>
-          <Ionicons name="add-circle-outline" size={23} color={colors.primary} /><Text style={styles.addText}>Add player</Text>
-        </Pressable>
-        <Pressable style={styles.calculate} onPress={calculate}>
-          <Ionicons name="sparkles" size={20} color={colors.background} /><Text style={styles.calculateText}>Calculate winner</Text>
-        </Pressable>
+        <Button label="Add player" icon="add-circle-outline" variant="outline" onPress={addPlayer} />
+        <Button label="Calculate winner" icon="trophy" onPress={calculate} style={styles.calculate} />
       </ScrollView>
       {editing && (
         <CardPickerModal
@@ -113,24 +107,16 @@ export function PlayersScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  container: { ...contentWidth, padding: 22, paddingBottom: 40 },
-  top: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24 },
-  back: { width: 44, height: 44, borderRadius: 14, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  step: { color: colors.primary, fontSize: 12, fontWeight: '900', letterSpacing: 2 },
-  title: { color: colors.text, fontSize: 34, fontWeight: '900' },
-  copy: { color: colors.textMuted, fontSize: 15, lineHeight: 22, marginTop: 10, marginBottom: 22 },
-  player: { backgroundColor: colors.surface, borderRadius: 18, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: colors.border },
+  container: { ...contentWidth, padding: 20, paddingBottom: 40 },
+  player: { backgroundColor: colors.surface, borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: colors.border, ...shadow },
   playerHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
-  number: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.primaryMuted, alignItems: 'center', justifyContent: 'center' },
-  numberText: { color: colors.primary, fontWeight: '800' },
+  number: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  numberText: { color: colors.onPrimary, fontWeight: '800' },
   name: { flex: 1, color: colors.text, fontSize: 17, fontWeight: '800', paddingVertical: 5 },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   captureWrap: { flex: 1 },
   manual: { color: colors.textMuted, fontSize: 12, textAlign: 'right', marginTop: 11 },
-  empty: { alignItems: 'center', gap: 10, padding: 30, marginBottom: 14, borderRadius: 18, borderWidth: 1, borderColor: colors.border },
+  empty: { alignItems: 'center', gap: 10, padding: 30, marginBottom: 14, borderRadius: 16, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#c7c7c7', backgroundColor: colors.surface },
   emptyText: { color: colors.textMuted, textAlign: 'center' },
-  add: { height: 56, borderRadius: 16, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  addText: { color: colors.primary, fontSize: 16, fontWeight: '800' },
-  calculate: { height: 58, borderRadius: 16, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 18 },
-  calculateText: { color: colors.background, fontSize: 17, fontWeight: '900' },
+  calculate: { marginTop: 12 },
 });

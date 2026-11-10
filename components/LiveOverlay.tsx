@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { colors } from '@/constants/theme';
+import { overlay } from '@/constants/theme';
 import { LiveCard, LiveState } from '@/services/recognition/live';
 import { coverTransform, mapBox } from '@/services/recognition/liveGeometry';
 import { codeToCard } from '@/services/recognition/yolo';
@@ -7,9 +7,9 @@ import { codeToCard } from '@/services/recognition/yolo';
 const symbols = { hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠' } as const;
 
 export const LIVE_COLORS: Record<LiveState, string> = {
-  confident: colors.primary,
-  uncertain: colors.gold,
-  failed: colors.danger,
+  confident: overlay.good,
+  uncertain: overlay.warn,
+  failed: overlay.bad,
 };
 
 export function cardLabel(code: string): string {
@@ -56,5 +56,5 @@ const styles = StyleSheet.create({
     position: 'absolute', top: -22, left: -3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
     minWidth: 44, alignItems: 'center',
   },
-  labelText: { color: '#08110d', fontSize: 11, fontWeight: '900' },
+  labelText: { color: overlay.onColor, fontSize: 11, fontWeight: '900' },
 });

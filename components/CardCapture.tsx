@@ -3,7 +3,7 @@ import { ActivityIndicator, Image, Modal, Platform, Pressable, StyleSheet, Text,
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '@/constants/theme';
+import { colors, overlay } from '@/constants/theme';
 import { LiveOverlay } from '@/components/LiveOverlay';
 import { RecognitionConfirmation } from '@/components/RecognitionConfirmation';
 import { useLiveScan } from '@/hooks/useLiveScan';
@@ -52,7 +52,7 @@ interface Pending {
   liveCodes: string[];
 }
 
-const BANNER_COLORS = { neutral: colors.textMuted, good: colors.primary, warn: colors.gold, bad: colors.danger } as const;
+const BANNER_COLORS = { neutral: overlay.textMuted, good: overlay.good, warn: overlay.warn, bad: overlay.bad } as const;
 
 export function CardCapture({
   expectedCount = 1, label = 'Take photo', table = false, blocked = [], confirmTitle = 'Detected cards', onResult, onTable,
@@ -205,7 +205,7 @@ export function CardCapture({
   return (
     <View style={styles.actions}>
       <Pressable style={styles.primary} onPress={openCamera} disabled={processing}>
-        <Ionicons name="camera" size={19} color={colors.background} />
+        <Ionicons name="camera" size={19} color={colors.onPrimary} />
         <Text style={styles.primaryText}>{label}</Text>
       </Pressable>
       <Pressable style={styles.secondary} onPress={choosePhoto} disabled={processing}>
@@ -264,20 +264,20 @@ export function CardCapture({
                 accessibilityLabel="Live card counter"
                 style={[
                   styles.counter, landscape ? styles.counterLandscape : styles.counterPortrait,
-                  { borderColor: ready ? colors.primary : BANNER_COLORS[banner?.tone ?? 'neutral'] },
+                  { borderColor: ready ? overlay.good : BANNER_COLORS[banner?.tone ?? 'neutral'] },
                 ]}
                 pointerEvents="none"
               >
                 {live.supported && !live.snapshot && !live.error ? (
-                  <ActivityIndicator size="small" color={colors.textMuted} />
+                  <ActivityIndicator size="small" color={overlay.textMuted} />
                 ) : (
                   <Ionicons
                     name={ready ? 'checkmark-circle' : 'scan-outline'}
                     size={16}
-                    color={ready ? colors.primary : colors.text}
+                    color={ready ? overlay.good : overlay.text}
                   />
                 )}
-                <Text style={[styles.counterText, ready && { color: colors.primary }]}>
+                <Text style={[styles.counterText, ready && { color: overlay.good }]}>
                   {live.supported ? counterLabel(live.snapshot, liveMode) : 'Live detection off'}
                 </Text>
               </View>
@@ -296,14 +296,14 @@ export function CardCapture({
                 style={[styles.close, landscape ? styles.closeLandscape : styles.closePortrait]}
                 onPress={() => setMode('closed')}
               >
-                <Ionicons name="close" size={28} color={colors.text} />
+                <Ionicons name="close" size={28} color={overlay.text} />
               </Pressable>
               <Pressable
                 accessibilityLabel="Focus camera"
                 style={[styles.focus, landscape ? styles.focusLandscape : styles.focusPortrait]}
                 onPress={refocus}
               >
-                <Ionicons name="locate" size={26} color={focusing ? colors.primary : colors.text} />
+                <Ionicons name="locate" size={26} color={focusing ? overlay.good : overlay.text} />
                 <Text style={styles.focusLabel}>Focus</Text>
               </Pressable>
               <Pressable
@@ -344,7 +344,7 @@ export function CardCapture({
                 resizeMode="contain"
               />
               <View style={[styles.panel, landscape ? styles.panelLandscape : styles.panelPortrait]}>
-                <ActivityIndicator size="small" color={colors.primary} />
+                <ActivityIndicator size="small" color={overlay.good} />
                 <Text style={styles.panelText} accessibilityLiveRegion="polite">{status}</Text>
                 <Pressable accessibilityLabel="Cancel detection" onPress={cancel} hitSlop={10}>
                   <Text style={styles.cancel}>Cancel</Text>
@@ -361,68 +361,68 @@ export function CardCapture({
 const styles = StyleSheet.create({
   actions: { gap: 10 },
   primary: {
-    backgroundColor: colors.primary, minHeight: 48, borderRadius: 14, flexDirection: 'row',
+    backgroundColor: colors.primary, minHeight: 52, borderRadius: 16, flexDirection: 'row',
     alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 12,
   },
-  primaryText: { color: colors.background, fontWeight: '800', fontSize: 15 },
+  primaryText: { color: colors.onPrimary, fontWeight: '800', fontSize: 15 },
   secondary: {
-    minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: colors.border,
+    minHeight: 52, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 12,
   },
-  secondaryText: { color: colors.primary, fontWeight: '700', fontSize: 15 },
+  secondaryText: { color: colors.text, fontWeight: '700', fontSize: 15 },
   warm: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   warmText: { color: colors.textMuted, fontSize: 12 },
   screen: { flex: 1, backgroundColor: '#000' },
-  guide: { position: 'absolute', borderWidth: 2, borderColor: colors.primary, borderRadius: 18, alignItems: 'center' },
+  guide: { position: 'absolute', borderWidth: 2, borderColor: overlay.text, borderRadius: 18, alignItems: 'center' },
   guidePortrait: { left: 24, right: 24, top: '28%', height: 200 },
   guideTablePortrait: { left: 12, right: 12, top: 100, bottom: 150 },
   guideLandscape: { left: 24, right: 130, top: 56, bottom: 48 },
-  guideReady: { borderColor: colors.primary, borderWidth: 4 },
-  guideText: { color: colors.text, backgroundColor: '#08110dcc', padding: 8, borderRadius: 8, marginTop: -18, overflow: 'hidden' },
+  guideReady: { borderColor: overlay.good, borderWidth: 4 },
+  guideText: { color: overlay.text, backgroundColor: overlay.scrim, padding: 8, borderRadius: 8, marginTop: -18, overflow: 'hidden' },
   shutter: {
     position: 'absolute', width: 72, height: 72, borderRadius: 36, borderWidth: 4,
-    borderColor: colors.text, padding: 5, alignItems: 'center', justifyContent: 'center',
+    borderColor: overlay.text, padding: 5, alignItems: 'center', justifyContent: 'center',
   },
   shutterPortrait: { bottom: 48, alignSelf: 'center' },
   shutterLandscape: { right: 28, top: '50%', marginTop: -36 },
   focus: {
-    position: 'absolute', width: 64, height: 64, borderRadius: 32, backgroundColor: '#08110daa',
+    position: 'absolute', width: 64, height: 64, borderRadius: 32, backgroundColor: overlay.scrimSoft,
     alignItems: 'center', justifyContent: 'center',
   },
   focusPortrait: { bottom: 54, left: 36 },
   focusLandscape: { right: 36, top: '50%', marginTop: 64 },
-  focusLabel: { color: colors.text, fontSize: 10, fontWeight: '800', marginTop: 1 },
+  focusLabel: { color: overlay.text, fontSize: 10, fontWeight: '800', marginTop: 1 },
   focusRing: { position: 'absolute', alignItems: 'center', gap: 8 },
   focusRingPortrait: { left: 0, right: 0, top: '38%' },
   focusRingLandscape: { left: 0, right: 100, top: '40%' },
-  focusBox: { width: 76, height: 76, borderRadius: 14, borderWidth: 2, borderColor: colors.primary },
-  focusText: { color: colors.primary, fontWeight: '800', fontSize: 13, backgroundColor: '#08110dcc', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, overflow: 'hidden' },
-  shutterReady: { borderColor: colors.primary },
+  focusBox: { width: 76, height: 76, borderRadius: 14, borderWidth: 2, borderColor: overlay.accent },
+  focusText: { color: overlay.accent, fontWeight: '800', fontSize: 13, backgroundColor: overlay.scrim, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, overflow: 'hidden' },
+  shutterReady: { borderColor: overlay.good },
   counter: {
-    position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#08110dcc',
+    position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: overlay.scrim,
     borderRadius: 16, borderWidth: 1.5, paddingHorizontal: 12, paddingVertical: 7,
   },
   counterPortrait: { top: 58, left: 20 },
   counterLandscape: { top: 22, left: 24 },
-  counterText: { color: colors.text, fontWeight: '900', fontSize: 14 },
+  counterText: { color: overlay.text, fontWeight: '900', fontSize: 14 },
   banner: {
-    position: 'absolute', backgroundColor: '#08110df0', borderRadius: 14, borderWidth: 1.5,
+    position: 'absolute', backgroundColor: overlay.scrimStrong, borderRadius: 14, borderWidth: 1.5,
     paddingHorizontal: 14, paddingVertical: 10,
   },
   bannerPortrait: { left: 20, right: 20, bottom: 138 },
   bannerLandscape: { left: 24, right: 130, bottom: 14 },
   bannerText: { fontWeight: '800', fontSize: 14, textAlign: 'center' },
-  shutterInner: { flex: 1, alignSelf: 'stretch', backgroundColor: colors.text, borderRadius: 30 },
-  close: { position: 'absolute', backgroundColor: '#08110daa', padding: 8, borderRadius: 24 },
+  shutterInner: { flex: 1, alignSelf: 'stretch', backgroundColor: overlay.text, borderRadius: 30 },
+  close: { position: 'absolute', backgroundColor: overlay.scrimSoft, padding: 8, borderRadius: 24 },
   closePortrait: { top: 54, right: 20 },
   closeLandscape: { top: 20, right: 28 },
   panel: {
     position: 'absolute', left: 20, right: 20, flexDirection: 'row', alignItems: 'center',
-    gap: 12, backgroundColor: '#08110df0', borderRadius: 16, borderWidth: 1, borderColor: colors.border,
+    gap: 12, backgroundColor: overlay.scrimStrong, borderRadius: 16, borderWidth: 1, borderColor: overlay.border,
     paddingVertical: 14, paddingHorizontal: 16,
   },
   panelPortrait: { bottom: 40 },
   panelLandscape: { bottom: 20 },
-  panelText: { flex: 1, color: colors.text, fontSize: 15, fontWeight: '700' },
-  cancel: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
+  panelText: { flex: 1, color: overlay.text, fontSize: 15, fontWeight: '700' },
+  cancel: { color: overlay.textMuted, fontSize: 14, fontWeight: '700' },
 });

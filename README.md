@@ -14,13 +14,47 @@ npm start
 Use `npm test` for the poker-engine test suite and `npm run typecheck` for
 strict TypeScript validation.
 
+## Optional AI second opinion
+
+Recognition is on-device by default. Users can optionally connect their **own**
+AI account from the home screen ("Connect AI") for a second opinion on a hard
+photo. Nothing is configured on the server and the app owner pays nothing:
+
+- **Sign in with OpenRouter** (OAuth PKCE, browser only): the user signs in and
+  approves the app, OpenRouter returns a key tied to *their* account and usage is
+  billed to their credits. The key is exchanged on the home page (`/?code=`),
+  so it works on any static host without special routing.
+- **Own API key** for Claude, OpenAI or Gemini. The key is kept in this
+  browser's `localStorage` and is sent only to that provider (Anthropic's
+  browser-access header is set; Gemini's key travels in a header, not the URL).
+- **Sign in with ChatGPT** is shown as pending. OpenAI only enables it for
+  remotely hosted apps it has approved; submit the interest form at
+  <https://developers.openai.com/siwc/quickstart> and switch it on afterwards.
+  Claude and Gemini do not allow third-party apps to sign in with a consumer
+  account, so they are key-only (or via OpenRouter).
+
+After a capture, "Check with AI" sends only that photo, asks for a JSON card
+list and compares it with the on-device reading. The AI never overrides the
+result silently: the user taps "Use the AI's reading" and still confirms.
+Code: `services/ai/` (request building, parsing, agreement; unit tested),
+`screens/AiScreen.tsx`, `components/AiCheck.tsx`. Default models live in
+`services/ai/types.ts` and can be changed in AI settings.
+
+## Look and feel
+
+The UI follows the editorial style of pokerlistings.com: white cards on a pale
+canvas, near-black hero and footer, Inter type, and a red-orange accent
+(`constants/theme.ts`). Green stays reserved for "confident / winner" and the
+camera overlays keep their own dark palette (`overlay`).
+
 ## Card recognition
 
 Photos are turned into cards by a trained 52-class YOLO11s detector
 (`public/models/cards.onnx`, from
 [sroot/lgd-cards-gen3](https://huggingface.co/sroot/lgd-cards-gen3), AGPL-3.0)
 running **on-device in the browser** through `onnxruntime-web` (WASM). No
-server or API key is involved and photos never leave the device.
+server or API key is involved and photos never leave the device unless the user
+turns on the optional AI check above.
 
 - The model finds the rank/suit index in each card corner. A card shows two
   corners and a deck has no duplicates, so detections are merged by card code.

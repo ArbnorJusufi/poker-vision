@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Image, LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
-import { colors } from '@/constants/theme';
+import { overlay } from '@/constants/theme';
 import { PositionedCard, TableLayout } from '@/types/poker';
 
 interface Props {
@@ -14,9 +14,9 @@ interface Props {
 const PLAYER_COLORS = ['#f6c453', '#5cc8ff', '#ff8fb1', '#b69cff', '#ff9f5c', '#7be3d1', '#e0e26b', '#ff6b6b'];
 
 function groupOf(card: PositionedCard, layout: TableLayout | null): { label: string; color: string } {
-  if (!layout?.ok) return { label: '', color: colors.primary };
-  if (layout.community.includes(card)) return { label: 'Board', color: colors.primary };
-  if (layout.dropped.includes(card)) return { label: 'Ignored', color: colors.danger };
+  if (!layout?.ok) return { label: '', color: overlay.good };
+  if (layout.community.includes(card)) return { label: 'Board', color: overlay.good };
+  if (layout.dropped.includes(card)) return { label: 'Ignored', color: overlay.bad };
   const index = layout.players.findIndex((hand) => hand.includes(card));
   return { label: `P${index + 1}`, color: PLAYER_COLORS[index % PLAYER_COLORS.length] };
 }
@@ -55,9 +55,9 @@ const styles = StyleSheet.create({
   frame: { width: '100%', aspectRatio: 4 / 3, backgroundColor: '#000', borderRadius: 16, overflow: 'hidden' },
   tag: {
     position: 'absolute', minWidth: 44, height: 22, borderRadius: 8, borderWidth: 2,
-    backgroundColor: '#08110dcc', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+    backgroundColor: overlay.scrim, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
     paddingHorizontal: 3,
   },
   tagText: { fontSize: 11, fontWeight: '900' },
-  tagGroup: { fontSize: 9, fontWeight: '900', color: '#08110d', paddingHorizontal: 3, borderRadius: 4, overflow: 'hidden' },
+  tagGroup: { fontSize: 9, fontWeight: '900', color: overlay.onColor, paddingHorizontal: 3, borderRadius: 4, overflow: 'hidden' },
 });
