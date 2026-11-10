@@ -7,6 +7,8 @@ import { INPUT_SIZE, Region, codeToCard, decodeOutput, letterboxFor, rgbaToTenso
 const MODEL_URL = '/models/cards.onnx';
 const ORT_BASE = '/ort/';
 const DETECTION_THRESHOLD = 0.12;
+/** Table mode keeps weak detections; the pipeline filters them by size and position. */
+const TABLE_THRESHOLD = 0.02;
 
 interface OrtTensor {
   data: Float32Array;
@@ -163,7 +165,9 @@ export class OnnxWebRecognizer implements CardRecognitionAdapter {
     }
   }
 
-  private passRunner(session: OrtSession, ort: OrtRuntime, bitmap: ImageBitmap): PassRunner {
+  private passRunner(
+    session: OrtSession, ort: OrtRuntime, bitmap: ImageBitmap, threshold = DETECTION_THRESHOLD,
+  ): PassRunner {
     return async (region: Region, variant: Variant) => {
       if (variant === 'plain') emit(region.width < bitmap.width ? 'Looking closer…' : 'Detecting cards…');
       await yieldToUi();
@@ -172,7 +176,7 @@ export class OnnxWebRecognizer implements CardRecognitionAdapter {
       const outputs = await session.run({ [session.inputNames[0]]: input });
       const output = outputs[session.outputNames[0]];
       return decodeOutput(
-        output.data, output.dims[2], letterboxFor(region.width, region.height), region, DETECTION_THRESHOLD,
+        output.data, output.dims[2], letterboxFor(region.width, region.height), region, threshold,
       );
     };
   }
@@ -184,7 +188,9 @@ export class OnnxWebRecognizer implements CardRecognitionAdapter {
       const [session, bitmap] = await Promise.all([getSession(), loadBitmap(imageUri)]);
       const ort = (window as unknown as { ort: OrtRuntime }).ort;
       try {
-        const { cards } = await detectTable(this.passRunner(session, ort, bitmap), bitmap.width, bitmap.height, emit);
+        const { cards } = await detectTable(
+          this.passRunner(session, ort, bitmap, TABLE_THRESHOLD), bitmap.width, bitmap.height, emit,
+        );
         return { imageWidth: bitmap.width, imageHeight: bitmap.height, cards };
       } finally {
         bitmap.close();

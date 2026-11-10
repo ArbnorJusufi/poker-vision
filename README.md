@@ -47,8 +47,14 @@ be registered with `CardRecognitionService.setAdapter()`.
 ### Scan the whole table
 
 "Scan whole table" on the home screen takes **one photo** of the five board
-cards plus every player's two cards. All cards are located (full image plus a
-3x3 grid of overlapping tiles), then grouped by position:
+cards plus every player's two cards. The scan is adaptive and goes slower when
+needed: a quick first round measures how large the cards appear, then later
+rounds zoom to the size the detector reads best, finally on sharpened images,
+and it stops once two consecutive rounds agree on a valid table. Votes from all
+passes are combined; low-confidence readings are only used to fill a gap, and
+only when their size and position fit the cards already found. A clear photo
+takes roughly 10-30 s in the browser and it can be cancelled any time. The cards
+are then grouped by position:
 
 - the grouping that keeps one 5-card board and several 2-card hands as
   compact as possible is chosen (exact search up to 17 cards, heuristic above);
