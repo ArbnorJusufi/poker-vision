@@ -31,9 +31,9 @@ export function counterLabel(snapshot: LiveSnapshot | null, mode: LiveMode): str
 /** What to tell the user about the live scan right now. */
 export function describeLive({ supported, loading, error, snapshot, mode }: Input): LiveBanner | null {
   if (!supported) {
-    return { tone: 'neutral', text: 'Live detection runs in the web app. Take a photo to read the cards.' };
+    return { tone: 'neutral', text: 'Live detection needs the web app (it cannot run in Expo Go). Take a photo to read the cards.' };
   }
-  if (error) return { tone: 'bad', text: `Live detection unavailable. You can still take a photo.` };
+  if (error) return { tone: 'bad', text: `Live detection unavailable: ${error} You can still take a photo.` };
   if (!snapshot) return { tone: 'neutral', text: loading ?? 'Starting live detection…' };
 
   const status = snapshot.status;

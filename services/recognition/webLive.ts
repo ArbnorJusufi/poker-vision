@@ -2,11 +2,32 @@ import { createFrameRenderer } from './frameRenderer';
 import { getInferenceBackend } from './inferenceBackend';
 import { FrameSource, LiveEngine, LiveMode, LiveScanner, LiveSnapshot } from './liveScanner';
 
-/** Reads frames from the <video> element the camera renders inside `root`. */
+/**
+ * Reads frames from the <video> element the camera renders inside `root`.
+ *
+ * Frames are counted with requestVideoFrameCallback where it exists. Whether a
+ * browser reports new frames for a camera stream varies, so the frame id also
+ * changes once a second: a stalled counter can delay a scan but never freeze
+ * recognition.
+ */
 export function createVideoFrameSource(root: HTMLElement): FrameSource {
   let video: HTMLVideoElement | null = null;
+  let watched: HTMLVideoElement | null = null;
+  let frames = 0;
+
+  const watch = (element: HTMLVideoElement) => {
+    if (watched === element || typeof element.requestVideoFrameCallback !== 'function') return;
+    watched = element;
+    const tick = () => {
+      frames += 1;
+      if (watched === element && element.isConnected) element.requestVideoFrameCallback(tick);
+    };
+    element.requestVideoFrameCallback(tick);
+  };
+
   const current = () => {
     if (!video || !video.isConnected) video = root.querySelector('video');
+    if (video) watch(video);
     return video && video.readyState >= 2 && video.videoWidth > 0 ? video : null;
   };
   return {
@@ -15,7 +36,7 @@ export function createVideoFrameSource(root: HTMLElement): FrameSource {
       return v ? { width: v.videoWidth, height: v.videoHeight } : null;
     },
     image: () => current(),
-    frameId: () => current()?.currentTime ?? -1,
+    frameId: () => `${frames}:${Math.floor(Date.now() / 1000)}`,
   };
 }
 
