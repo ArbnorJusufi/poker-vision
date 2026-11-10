@@ -38,6 +38,12 @@ export function codeToCard(code: string): Card {
   return { rank: code.slice(0, -1) as Rank, suit: suitByCode[code.slice(-1)] };
 }
 
+const codeBySuit: Record<Suit, string> = { clubs: 'C', diamonds: 'D', hearts: 'H', spades: 'S' };
+
+export function cardToCode(card: Card): string {
+  return `${card.rank}${codeBySuit[card.suit]}`;
+}
+
 export function letterboxFor(width: number, height: number, size = INPUT_SIZE): Letterbox {
   const scale = Math.min(size / width, size / height);
   const w = Math.round(width * scale);
