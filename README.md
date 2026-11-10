@@ -23,3 +23,10 @@ trained 52-card detection model. A TFLite/CoreML adapter can be registered with
 `CardRecognitionService.setAdapter()` without changing screens or game logic.
 
 The manual picker validates all cards globally and prevents duplicates.
+
+## Deploy to Netlify
+
+`netlify.toml` configures the build (`npx expo export --platform web`, publish
+`dist`) and a single-page-app redirect. In Netlify choose **Add new site →
+Import an existing project**, select this repository, and deploy. On an iPhone,
+open the site in Safari and use Share → Add to Home Screen.
