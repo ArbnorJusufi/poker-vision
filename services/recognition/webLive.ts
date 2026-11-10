@@ -1,4 +1,5 @@
 import { createFrameRenderer } from './frameRenderer';
+import { detectSplitIndexCards } from './splitIndexDetector';
 import { getInferenceBackend } from './inferenceBackend';
 import { FrameSource, LiveEngine, LiveMode, LiveScanner, LiveSnapshot } from './liveScanner';
 
@@ -67,6 +68,7 @@ export async function startWebLive(options: WebLiveOptions): Promise<WebLiveHand
       renderer: createFrameRenderer(),
       source: createVideoFrameSource(options.root),
       mode: options.mode,
+      splitIndex: (image, size) => detectSplitIndexCards(image, size.width, size.height, engine.run, { live: true }),
       onUpdate: options.onUpdate,
       onError: options.onError,
     });

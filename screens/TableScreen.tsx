@@ -13,7 +13,7 @@ import { useGame } from '@/hooks/GameContext';
 import { Card, TableDetection, TableLayout } from '@/types/poker';
 import { cardKey } from '@/utils/cardValidation';
 import { LiveComparison, compareRecognition } from '@/utils/liveComparison';
-import { groupTable, lowConfidenceCards } from '@/utils/tableLayout';
+import { TABLE_REVIEW_CONFIDENCE, groupTable, lowConfidenceCards } from '@/utils/tableLayout';
 
 interface Scan {
   uri: string;
@@ -67,6 +67,15 @@ export function TableScreen() {
   const weak = layout ? lowConfidenceCards(layout) : [];
   const blockedFor = (index: number) =>
     groups.flatMap((group, i) => (i === index ? [] : group.cards));
+  const readingFor = (card: Card) => {
+    const found = layout?.ok
+      ? [...layout.community, ...layout.players.flat()].find((candidate) => cardKey(candidate.card) === cardKey(card))
+      : undefined;
+    if (!found) return { text: 'set by you', tone: colors.textMuted };
+    const percent = Math.round(found.confidence * 100);
+    const tone = found.confidence >= 0.8 ? colors.primary : found.confidence >= TABLE_REVIEW_CONFIDENCE ? colors.gold : colors.danger;
+    return { text: `${percent}%`, tone };
+  };
   const active = editing === null ? null : groups[editing];
   const changed = !!layout?.ok && groups.some((group, i) => {
     const original = i === 0 ? layout.community : layout.players[i - 1];
@@ -133,9 +142,22 @@ export function TableScreen() {
                   </Text>
                 </View>
                 <View style={styles.groupCards}>
-                  {Array.from({ length: group.size }, (_, i) => (
-                    <PlayingCard key={i} card={group.cards[i]} compact />
-                  ))}
+                  {Array.from({ length: group.size }, (_, i) => {
+                    const reading = group.cards[i] ? readingFor(group.cards[i]) : null;
+                    return (
+                      <View key={i} style={styles.groupCard}>
+                        <PlayingCard card={group.cards[i]} compact />
+                        {reading && (
+                          <Text
+                            accessibilityLabel={`Confidence ${reading.text}`}
+                            style={[styles.reading, { color: reading.tone }]}
+                          >
+                            {reading.text}
+                          </Text>
+                        )}
+                      </View>
+                    );
+                  })}
                 </View>
               </Pressable>
             ))}
@@ -190,6 +212,8 @@ const styles = StyleSheet.create({
   groupLabel: { color: colors.text, fontWeight: '900', fontSize: 15 },
   groupEdit: { color: colors.primary, fontSize: 12, fontWeight: '700' },
   groupCards: { flexDirection: 'row', gap: 8 },
+  groupCard: { alignItems: 'center', gap: 4 },
+  reading: { fontSize: 11, fontWeight: '800' },
   winner: { height: 56, backgroundColor: colors.primary, borderRadius: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
   winnerText: { color: colors.background, fontWeight: '900', fontSize: 16 },
   disabled: { opacity: 0.35 },

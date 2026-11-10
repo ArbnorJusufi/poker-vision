@@ -1,9 +1,9 @@
 import { PositionedCard } from '@/types/poker';
 import { groupTable } from '@/utils/tableLayout';
 import { LiveCard, LiveStatus, LiveTracker, liveCodes, liveStatus } from './live';
-import { gridRegions } from './pipeline';
+import { gridRegions, outsideSeededSpots } from './pipeline';
 import { Variant } from './imageOps';
-import { INPUT_SIZE, Region, codeToCard, decodeOutput, letterboxFor, rgbaToTensor } from './yolo';
+import { INPUT_SIZE, Detection, Region, codeToCard, decodeOutput, letterboxFor, rgbaToTensor } from './yolo';
 
 /** Where frames come from. On the web this is the camera's <video> element. */
 export interface FrameSource {
@@ -49,6 +49,8 @@ export interface LiveScannerOptions {
   mode: LiveMode;
   onUpdate: (snapshot: LiveSnapshot) => void;
   onError?: (error: Error) => void;
+  /** Reads cards whose rank and suit are printed apart. Used now and then while something is missing. */
+  splitIndex?: (image: CanvasImageSource, size: { width: number; height: number }) => Promise<Detection[]>;
   /** Minimum rest between scans so the UI thread can breathe. */
   intervalMs?: number;
   now?: () => number;
@@ -57,6 +59,11 @@ export interface LiveScannerOptions {
 
 const LIVE_THRESHOLD = 0.15;
 const STABLE_SCANS = 2;
+/** One scan in this many reads split-index cards (rank and suit printed apart). */
+const SPLIT_EVERY = 3;
+/** Split-index cards stay in view this long between their own scans. */
+const SEED_LIFETIME_MS = 8000;
+const NO_COVERAGE: Region = { x: 0, y: 0, width: 0, height: 0 };
 
 /** What the tracker currently sees, used to zoom in where the cards are. */
 export interface TrackedArea {
@@ -159,6 +166,8 @@ export class LiveScanner {
   private readonly now: () => number;
   private readonly intervalMs: number;
   private complete = false;
+  private seed: Detection[] = [];
+  private seedAt = 0;
 
   constructor(private readonly options: LiveScannerOptions) {
     this.tracker = options.tracker ?? new LiveTracker();
@@ -203,13 +212,31 @@ export class LiveScanner {
       const fresh = frameId === undefined || frameId !== this.lastFrame;
       if (size && size.width > 0 && size.height > 0 && image && fresh) {
         this.lastFrame = frameId;
+        const split = this.options.splitIndex;
+        const seedKnown = this.seed.length > 0 && this.now() - this.seedAt < SEED_LIFETIME_MS;
+        if (split && this.scans % SPLIT_EVERY === SPLIT_EVERY - 1 && (!this.complete || seedKnown)) {
+          const found = await split(image, size);
+          if (!this.running) return;
+          this.seed = found;
+          this.seedAt = this.now();
+          if (found.length) {
+            // Cards the standard reading cannot see are only judged by their own scans.
+            this.tracker.update(found, this.now(), NO_COVERAGE);
+            this.scans += 1;
+            this.publish(size);
+            this.schedule(Math.max(40, this.intervalMs - (this.now() - started)));
+            return;
+          }
+        }
         const region = planRegion(mode, this.scans, size.width, size.height, this.complete, trackedArea(this.tracker.cards()));
         const input = rgbaToTensor(renderer.render(image, region, planVariant(mode, this.scans, this.complete)), INPUT_SIZE);
         const output = await engine.run(input);
         if (!this.running) return;
-        const detections = decodeOutput(
+        const decoded = decodeOutput(
           output.data, output.dims[2], letterboxFor(region.width, region.height), region, LIVE_THRESHOLD,
         );
+        const recent = this.seed.length > 0 && this.now() - this.seedAt < SEED_LIFETIME_MS ? this.seed : [];
+        const detections = [...outsideSeededSpots(decoded, recent), ...recent];
         const full = region.width >= size.width && region.height >= size.height;
         this.tracker.update(detections, this.now(), full ? undefined : region);
         this.scans += 1;

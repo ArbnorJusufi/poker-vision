@@ -30,6 +30,8 @@ export interface Detection {
   confidence: number;
   /** x1, y1, x2, y2 in source-image pixels. */
   box: [number, number, number, number];
+  /** Read from an actual rank and suit pair, not a guess from the detector, so never a ghost of a neighbour. */
+  solid?: boolean;
 }
 
 const suitByCode: Record<string, Suit> = { C: 'clubs', D: 'diamonds', H: 'hearts', S: 'spades' };

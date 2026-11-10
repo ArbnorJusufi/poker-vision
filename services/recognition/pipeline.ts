@@ -7,6 +7,33 @@ import {
 export type PassRunner = (region: Region, variant: Variant) => Promise<Detection[]>;
 export type ProgressListener = (message: string) => void;
 
+/**
+ * Detections already known for part of the picture (cards whose rank and suit
+ * are printed apart, which the standard passes misread). The standard passes'
+ * guesses at those spots are discarded so they cannot outvote the known cards.
+ */
+/** Only a confident reading is allowed to veto the standard detector at its spot. */
+const SEED_VETO_CONFIDENCE = 0.5;
+
+export function outsideSeededSpots(detections: Detection[], seed: Detection[]): Detection[] {
+  const trusted = seed.filter((detection) => detection.confidence >= SEED_VETO_CONFIDENCE);
+  if (!trusted.length) return detections;
+  const spots = trusted.map(({ box: [x1, y1, x2, y2] }) => {
+    const margin = 0.5 * (y2 - y1);
+    return [x1 - margin, y1 - margin, x2 + margin, y2 + margin];
+  });
+  return detections.filter((detection) => {
+    const x = (detection.box[0] + detection.box[2]) / 2;
+    const y = (detection.box[1] + detection.box[3]) / 2;
+    return !spots.some(([x1, y1, x2, y2]) => x >= x1 && x <= x2 && y >= y1 && y <= y2);
+  });
+}
+
+export function withoutSeededSpots(run: PassRunner, seed: Detection[]): PassRunner {
+  if (!seed.length) return run;
+  return async (region, variant) => outsideSeededSpots(await run(region, variant), seed);
+}
+
 interface Pass {
   region: Region;
   variant: Variant;
@@ -31,12 +58,14 @@ function isSatisfied(merged: Detection[], expected: number): boolean {
  * variants and overlapping tiles until every card is clearly read.
  */
 export async function detectCards(
-  run: PassRunner,
+  rawRun: PassRunner,
   width: number,
   height: number,
   expected: number,
   onProgress?: ProgressListener,
+  seed: Detection[] = [],
 ): Promise<DetectionOutcome> {
+  const run = withoutSeededSpots(rawRun, seed);
   const full: Region = { x: 0, y: 0, width, height };
   const tiles = tileRegions(width, height);
   const stages: Pass[][] = [
@@ -50,8 +79,11 @@ export async function detectCards(
     ],
   ];
 
-  let all: Detection[] = [];
+  let all: Detection[] = [...seed];
   let passes = 0;
+  if (seed.length && isSatisfied(mergeByCode(nonMaxSuppression(all)), expected)) {
+    return { detections: selectCards(mergeByCode(nonMaxSuppression(all)), expected), passes };
+  }
   for (const [index, stage] of stages.entries()) {
     if (index > 0) onProgress?.('Looking closer…');
     for (const pass of stage) {
@@ -112,6 +144,7 @@ interface Cluster {
   y: number;
   size: number;
   votes: Map<string, { sum: number; max: number }>;
+  solid: boolean;
 }
 
 const winningVote = (cluster: Cluster) =>
@@ -130,7 +163,8 @@ function clusterDetections(detections: Detection[]): Cluster[] {
       const ratio = size / cluster.size;
       return ratio > 0.5 && ratio < 2 && Math.hypot(c.x - cluster.x, c.y - cluster.y) < 0.5 * Math.min(size, cluster.size);
     });
-    const target = home ?? { x: c.x, y: c.y, size, votes: new Map() };
+    const target = home ?? { x: c.x, y: c.y, size, votes: new Map(), solid: false };
+    if (detection.solid) target.solid = true;
     if (!home) clusters.push(target);
     const vote = target.votes.get(detection.code) ?? { sum: 0, max: 0 };
     target.votes.set(detection.code, {
@@ -211,7 +245,9 @@ export function positionedCards(detections: Detection[]): PositionedCard[] {
       (cluster) =>
         !kept.includes(cluster) &&
         kept.some((other) => distanceTo(other, cluster) <= NEAR_ANCHOR * reference) &&
-        kept.every((other) => distanceTo(other, cluster) > GHOST_DISTANCE * Math.min(other.size, cluster.size)),
+        kept.every(
+          (other) => (cluster.solid && other.solid) || distanceTo(other, cluster) > GHOST_DISTANCE * Math.min(other.size, cluster.size),
+        ),
     );
     if (!next) break;
     kept.push(next);
@@ -251,11 +287,13 @@ function zoomCoverage(cards: PositionedCard[], width: number, height: number): n
  * proof that nothing is missing, so a scan never stops after a single round.
  */
 export async function detectTable(
-  run: PassRunner,
+  rawRun: PassRunner,
   width: number,
   height: number,
   onProgress?: ProgressListener,
+  seed: Detection[] = [],
 ): Promise<TableOutcome> {
+  const run = withoutSeededSpots(rawRun, seed);
   const full: Region = { x: 0, y: 0, width, height };
   const used: number[] = [MAX_COVERAGE];
   const fresh = (coverage: number) => used.every((other) => Math.abs(other - coverage) >= 0.05);
@@ -282,7 +320,7 @@ export async function detectTable(
     return null;
   };
 
-  let all: Detection[] = [];
+  let all: Detection[] = [...seed];
   let passes = 0;
   let cards: PositionedCard[] = [];
   let previous = '';

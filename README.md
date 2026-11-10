@@ -73,6 +73,32 @@ corners are hidden are not reliably read, and a card can occasionally be
 misread. Grouping is positional, so players' hands must be visibly separate
 from each other and from the board. Grouping logic is in `utils/tableLayout.ts`.
 
+### Cards with the rank and suit printed apart
+
+Many poker apps and illustrations print the rank at the top-left and the suit
+at the lower right instead of together in the corner. The detector was trained
+on conventional corner indexes and misreads these. A second reader
+(`services/recognition/splitIndex.ts`, `splitIndexDetector.ts`) handles them:
+
+1. It finds dark and red glyph blobs that sit on a white card surface (relative
+   to the picture's own white level, so dim photos work).
+2. It pairs each rank with the suit printed below and to the right of it (the
+   suit must be clearly displaced from the rank, so conventional cards are left
+   to the standard detector).
+3. Each pair is redrawn as a conventional corner index on a model-sized canvas
+   (layout tuned against the detector), also sharpened for soft photos, and the
+   same model reads it. Rebuilt corners must sit on a mostly white area, so
+   chips and artwork are not read as cards.
+4. Its readings vote with the standard passes. Where it has read a card
+   confidently (50% or more), the standard detector's guesses at that spot are
+   ignored, because it misreads this style.
+
+It runs for single photos, the table scan and (every third scan, on a
+reduced-size frame) the live scanner. Its readings are real model confidences:
+on a small illustration most correct cards score 75-87%, and low-contrast or
+tiny glyphs score lower. The table review shows each card's percentage and
+flags the doubtful ones. K and A glyphs in some fonts are easily confused.
+
 ### Live camera scanner
 
 Opening the camera starts recognition immediately, with no photo needed. The

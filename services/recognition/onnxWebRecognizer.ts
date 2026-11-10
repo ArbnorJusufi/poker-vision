@@ -4,6 +4,7 @@ import { createFrameRenderer } from './frameRenderer';
 import { Variant } from './imageOps';
 import { getInferenceBackend } from './inferenceBackend';
 import { PassRunner, detectCards, detectTable } from './pipeline';
+import { detectSplitIndexCards } from './splitIndexDetector';
 import { Region, codeToCard, decodeOutput, letterboxFor, rgbaToTensor } from './yolo';
 
 export const DETECTION_THRESHOLD = 0.12;
@@ -39,8 +40,9 @@ export class OnnxWebRecognizer implements CardRecognitionAdapter {
       const [, bitmap] = await Promise.all([backend.load(emit), loadBitmap(imageUri)]);
 
       try {
+        const seed = await this.splitIndexSeed(bitmap);
         const { detections } = await detectCards(
-          this.passRunner(bitmap, renderer, DETECTION_THRESHOLD), bitmap.width, bitmap.height, expectedCount, emit,
+          this.passRunner(bitmap, renderer, DETECTION_THRESHOLD), bitmap.width, bitmap.height, expectedCount, emit, seed,
         );
         const cards = detections.map((detection) => codeToCard(detection.code));
         const confidences = detections.map((detection) => detection.confidence);
@@ -70,8 +72,9 @@ export class OnnxWebRecognizer implements CardRecognitionAdapter {
       emit(backend.isReady() ? 'Reading photo…' : 'Loading card detector…');
       const [, bitmap] = await Promise.all([backend.load(emit), loadBitmap(imageUri)]);
       try {
+        const seed = await this.splitIndexSeed(bitmap);
         const { cards } = await detectTable(
-          this.passRunner(bitmap, renderer, TABLE_THRESHOLD), bitmap.width, bitmap.height, emit,
+          this.passRunner(bitmap, renderer, TABLE_THRESHOLD), bitmap.width, bitmap.height, emit, seed,
         );
         return { imageWidth: bitmap.width, imageHeight: bitmap.height, cards };
       } finally {
@@ -80,6 +83,17 @@ export class OnnxWebRecognizer implements CardRecognitionAdapter {
     } finally {
       renderer.dispose();
       if (onStatus) statusListeners.delete(onStatus);
+    }
+  }
+
+  /** Cards with the rank and suit printed apart are read separately; the result votes with the normal passes. */
+  private async splitIndexSeed(bitmap: ImageBitmap) {
+    emit('Reading card layout…');
+    await yieldToUi();
+    try {
+      return await detectSplitIndexCards(bitmap, bitmap.width, bitmap.height, (input) => getInferenceBackend().run(input));
+    } catch {
+      return [];
     }
   }
 
