@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "Poker Vision",
+    "slug": "poker-vision",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "pokervision",
+    "userInterfaceStyle": "dark",
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Poker Vision to photograph playing cards."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Poker Vision to select photos of playing cards."
+        }
+      ],
+      "expo-font"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0b1511"
+      }
+    }
+  }
+}
